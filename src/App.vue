@@ -1,14 +1,12 @@
 <template>
   <div
     class="app-container"
+    @mousedown.left="onMouseDown"
     @contextmenu.prevent="onRightClick"
+    @dblclick="onDoubleClick"
   >
-    <!-- Drag region: only the hamster area is draggable -->
-    <div
-      class="hamster-drag-region"
-      data-tauri-drag-region
-      @dblclick="onDoubleClick"
-    >
+    <!-- Hamster sits at bottom center of a larger transparent window -->
+    <div class="hamster-area">
       <HamsterSprite :state="currentState" />
     </div>
 
@@ -67,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import HamsterSprite from './components/HamsterSprite.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -113,31 +111,29 @@ const showFeed = ref(false)
 const showPostcards = ref(false)
 const showSouvenirs = ref(false)
 
-const NORMAL_SIZE = 250
-const EXPANDED_SIZE = 500
+// Any popup open?
+const anyPopupOpen = computed(() =>
+  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value
+)
 
-async function resizeWindow(size: number) {
+// Drag: use Tauri startDragging API directly on mousedown
+function onMouseDown(_e: MouseEvent) {
+  if (menuVisible.value || anyPopupOpen.value) return
   try {
-    const win = getCurrentWindow()
-    await win.setSize(new (await import('@tauri-apps/api/dpi')).LogicalSize(size, size))
+    getCurrentWindow().startDragging()
   } catch {
     // Not in Tauri
   }
 }
 
-async function onRightClick(e: MouseEvent) {
-  // Expand window so menu doesn't get clipped
-  await resizeWindow(EXPANDED_SIZE)
+function onRightClick(e: MouseEvent) {
   menuX.value = e.clientX
   menuY.value = e.clientY
   menuVisible.value = true
 }
 
-async function closeMenu() {
-  if (!menuVisible.value) return
+function closeMenu() {
   menuVisible.value = false
-  // Shrink back after a short delay
-  setTimeout(() => resizeWindow(NORMAL_SIZE), 100)
 }
 
 function onDoubleClick() {
@@ -245,22 +241,24 @@ onUnmounted(() => {
 .app-container {
   width: 100vw;
   height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: transparent;
   position: relative;
   overflow: visible;
-}
-
-.hamster-drag-region {
   cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.hamster-drag-region:active {
+.app-container:active {
   cursor: grabbing;
+}
+
+/* Hamster sits at bottom center of the window */
+.hamster-area {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  pointer-events: none; /* Let mousedown pass through to app-container for dragging */
 }
 </style>
