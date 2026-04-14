@@ -1,12 +1,16 @@
 <template>
   <div
     class="app-container"
-    @mousedown.left="onDragStart"
-    @dblclick="onDoubleClick"
     @contextmenu.prevent="onRightClick"
-    @click="closeMenu"
   >
-    <HamsterSprite :state="currentState" />
+    <!-- Drag region: only the hamster area is draggable -->
+    <div
+      class="hamster-drag-region"
+      data-tauri-drag-region
+      @dblclick="onDoubleClick"
+    >
+      <HamsterSprite :state="currentState" />
+    </div>
 
     <ContextMenu
       :visible="menuVisible"
@@ -18,6 +22,7 @@
       @souvenir="onSouvenir"
       @settings="onSettings"
       @quit="onQuit"
+      @close="closeMenu"
     />
 
     <!-- Status note when on adventure -->
@@ -108,25 +113,31 @@ const showFeed = ref(false)
 const showPostcards = ref(false)
 const showSouvenirs = ref(false)
 
-function onRightClick(e: MouseEvent) {
+const NORMAL_SIZE = 250
+const EXPANDED_SIZE = 500
+
+async function resizeWindow(size: number) {
+  try {
+    const win = getCurrentWindow()
+    await win.setSize(new (await import('@tauri-apps/api/dpi')).LogicalSize(size, size))
+  } catch {
+    // Not in Tauri
+  }
+}
+
+async function onRightClick(e: MouseEvent) {
+  // Expand window so menu doesn't get clipped
+  await resizeWindow(EXPANDED_SIZE)
   menuX.value = e.clientX
   menuY.value = e.clientY
   menuVisible.value = true
 }
 
-function closeMenu() {
+async function closeMenu() {
+  if (!menuVisible.value) return
   menuVisible.value = false
-}
-
-// Drag to move window — must be synchronous on mousedown
-function onDragStart(_e: MouseEvent) {
-  if (menuVisible.value) return
-  if (showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value) return
-  try {
-    getCurrentWindow().startDragging()
-  } catch {
-    // Not in Tauri environment
-  }
+  // Shrink back after a short delay
+  setTimeout(() => resizeWindow(NORMAL_SIZE), 100)
 }
 
 function onDoubleClick() {
@@ -182,7 +193,6 @@ function onSouvenir() {
 
 function onSettings() {
   closeMenu()
-  // Settings not yet implemented
 }
 
 async function onQuit() {
@@ -208,10 +218,8 @@ function pollAdventure() {
   if (!isOnAdventure.value) return
   const rewards = checkAdventureReturn()
   if (rewards) {
-    // Hamster comes back!
     setState('adventure_back')
     coins.value += rewards.coins
-    // Could show a notification here in the future
   }
 }
 
@@ -219,11 +227,7 @@ onMounted(() => {
   load()
   startCoinTimer()
   startAutoSave()
-
-  // Poll adventure return every 5 seconds
   adventureTimer = setInterval(pollAdventure, 5000)
-
-  // If loaded with ongoing adventure, make hamster stay out
   if (isOnAdventure.value) {
     setState('adventure_out')
   }
@@ -245,10 +249,18 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: transparent;
-  cursor: grab;
+  position: relative;
+  overflow: visible;
 }
 
-.app-container:active {
+.hamster-drag-region {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hamster-drag-region:active {
   cursor: grabbing;
 }
 </style>

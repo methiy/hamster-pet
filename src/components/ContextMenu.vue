@@ -1,13 +1,15 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="context-menu" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
-      <div class="menu-item" @click="emit('feed')">🍽️ 喂食</div>
-      <div class="menu-item" @click="emit('shop')">🏪 商店</div>
-      <div class="menu-item" @click="emit('postcard')">📮 明信片</div>
-      <div class="menu-item" @click="emit('souvenir')">🎁 纪念品</div>
-      <div class="menu-divider"></div>
-      <div class="menu-item" @click="emit('settings')">⚙️ 设置</div>
-      <div class="menu-item menu-item-danger" @click="emit('quit')">❌ 退出</div>
+    <div v-if="visible" class="context-overlay" @click="emit('close')">
+      <div class="context-menu" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
+        <div class="menu-item" @click="emit('feed')">🍽️ 喂食</div>
+        <div class="menu-item" @click="emit('shop')">🏪 商店</div>
+        <div class="menu-item" @click="emit('postcard')">📮 明信片</div>
+        <div class="menu-item" @click="emit('souvenir')">🎁 纪念品</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" @click="emit('settings')">⚙️ 设置</div>
+        <div class="menu-item menu-item-danger" @click="emit('quit')">❌ 退出</div>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -26,10 +28,17 @@ const emit = defineEmits<{
   souvenir: []
   settings: []
   quit: []
+  close: []
 }>()
 </script>
 
 <style scoped>
+.context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
 .context-menu {
   position: fixed;
   z-index: 9999;
