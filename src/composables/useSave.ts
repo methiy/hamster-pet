@@ -5,13 +5,26 @@ interface SaveData {
   coins: number
   ownedFoods: OwnedFood[]
   lastSave: number
+  adventure?: {
+    isOnAdventure: boolean
+    locationId: string | null
+    endTime: number | null
+    collectedPostcards: string[]
+    collectedSouvenirs: string[]
+    hasTent: boolean
+    hasScarf: boolean
+  }
 }
 
 const SAVE_KEY = 'hamster-pet-save'
 
 export function useSave(
   coins: Ref<number>,
-  ownedFoods: Ref<OwnedFood[]>
+  ownedFoods: Ref<OwnedFood[]>,
+  adventureFns?: {
+    getAdventureData: () => any
+    loadAdventureData: (data: any) => void
+  }
 ) {
   let saveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -20,6 +33,9 @@ export function useSave(
       coins: coins.value,
       ownedFoods: ownedFoods.value,
       lastSave: Date.now(),
+    }
+    if (adventureFns) {
+      data.adventure = adventureFns.getAdventureData()
     }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -41,6 +57,10 @@ export function useSave(
       if (data.lastSave) {
         const minutesAway = Math.floor((Date.now() - data.lastSave) / 60000)
         coins.value += Math.min(minutesAway, 60) // cap at 60 bonus coins
+      }
+
+      if (adventureFns && data.adventure) {
+        adventureFns.loadAdventureData(data.adventure)
       }
     } catch {
       // corrupted save, ignore
