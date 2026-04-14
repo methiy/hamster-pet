@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import HamsterSprite from './components/HamsterSprite.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import StatusNote from './components/StatusNote.vue'
@@ -117,17 +118,14 @@ function closeMenu() {
   menuVisible.value = false
 }
 
-// Drag to move window
-async function onDragStart(_e: MouseEvent) {
+// Drag to move window — must be synchronous on mousedown
+function onDragStart(_e: MouseEvent) {
   if (menuVisible.value) return
+  if (showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value) return
   try {
-    const tauriWindow = (window as any).__TAURI__
-    if (tauriWindow) {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      await getCurrentWindow().startDragging()
-    }
+    getCurrentWindow().startDragging()
   } catch {
-    // Not in Tauri environment, ignore
+    // Not in Tauri environment
   }
 }
 
@@ -191,11 +189,7 @@ async function onQuit() {
   closeMenu()
   save()
   try {
-    const tauriWindow = (window as any).__TAURI__
-    if (tauriWindow) {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      await getCurrentWindow().close()
-    }
+    await getCurrentWindow().close()
   } catch {
     window.close()
   }
