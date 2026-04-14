@@ -1,7 +1,7 @@
 <template>
   <div
     class="app-container"
-    @mousedown.left="onMouseDown"
+    @mousedown="onMouseDown"
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
@@ -116,8 +116,10 @@ const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value
 )
 
-// Drag: use Tauri startDragging API directly on mousedown
-function onMouseDown(_e: MouseEvent) {
+// Drag: only on left click, and not when menu/popup is open
+function onMouseDown(e: MouseEvent) {
+  // Only left button (button === 0), skip right click
+  if (e.button !== 0) return
   if (menuVisible.value || anyPopupOpen.value) return
   try {
     getCurrentWindow().startDragging()
