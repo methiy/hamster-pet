@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { foods } from '../data/foods'
 
-const props = defineProps<{
+defineProps<{
   coins: number
   hasTent: boolean
   hasScarf: boolean
