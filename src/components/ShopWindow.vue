@@ -93,23 +93,26 @@ function onBuyScarf() {
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 5000;
+  padding: 10px;
+  overflow: hidden;
 }
 
 .shop-window {
   background: #FFF8F0;
-  border-radius: 16px;
-  padding: 24px;
-  min-width: 320px;
-  max-width: 380px;
-  max-height: 80vh;
+  border-radius: 14px;
+  padding: 16px;
+  width: 100%;
+  max-width: 360px;
+  max-height: calc(100vh - 20px);
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(92, 64, 51, 0.25);
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;
+  font-size: 12px;
 }
 
 .close-btn {

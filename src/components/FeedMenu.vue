@@ -58,20 +58,24 @@ const foodItems = computed(() => {
   inset: 0;
   background: rgba(0, 0, 0, 0.2);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 5000;
+  padding: 10px;
 }
 
 .feed-menu {
   background: #FFF8F0;
   border-radius: 14px;
-  padding: 16px;
-  min-width: 200px;
-  max-width: 260px;
+  padding: 14px;
+  width: 100%;
+  max-width: 240px;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
   box-shadow: 0 6px 24px rgba(92, 64, 51, 0.2);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;
+  font-size: 12px;
 }
 
 .feed-title {

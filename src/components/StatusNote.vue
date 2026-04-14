@@ -2,9 +2,8 @@
   <Teleport to="body">
     <div class="status-note">
       <div class="note-content">
-        <div class="note-title">仓仓出门啦！</div>
-        <div class="note-location">{{ locationEmoji }} {{ locationName }}</div>
-        <div class="note-time">预计回来时间: {{ returnTimeStr }}</div>
+        <span class="note-icon">{{ locationEmoji }}</span>
+        <span class="note-text">去{{ locationName }}啦~ {{ returnTimeStr }}回</span>
       </div>
     </div>
   </Teleport>
@@ -30,9 +29,9 @@ const returnTimeStr = computed(() => {
 <style scoped>
 .status-note {
   position: fixed;
-  top: 10px;
+  bottom: 210px;
   left: 50%;
-  transform: translateX(-50%) rotate(-2deg);
+  transform: translateX(-50%);
   z-index: 4000;
   pointer-events: none;
 }
@@ -40,28 +39,23 @@ const returnTimeStr = computed(() => {
 .note-content {
   background: #FFFDE7;
   border: 1px solid #F0E68C;
-  border-radius: 4px;
-  padding: 10px 16px;
-  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  padding: 5px 12px;
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.1);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;
-  min-width: 140px;
-  text-align: center;
-}
-
-.note-title {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.note-location {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.note-time {
   font-size: 11px;
-  color: #999;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-icon {
+  font-size: 13px;
+}
+
+.note-text {
+  font-weight: 500;
 }
 </style>
