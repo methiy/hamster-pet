@@ -7,7 +7,17 @@
   >
     <!-- Hamster sits at bottom center of a larger transparent window -->
     <div class="hamster-area">
-      <HamsterSprite :state="currentState" />
+      <SpeechBubble
+        :text="speechText"
+        :visible="speechVisible"
+        @hide="speechVisible = false"
+      />
+      <HamsterSprite
+        :state="displayState"
+        @region-click="onRegionClick"
+        @region-hover="onRegionHover"
+        @miss-click="onMissClick"
+      />
     </div>
 
     <ContextMenu
@@ -73,6 +83,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import HamsterSprite from './components/HamsterSprite.vue'
+import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import StatusNote from './components/StatusNote.vue'
 import ShopWindow from './components/ShopWindow.vue'
@@ -84,8 +95,10 @@ import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
 import { useSave } from './composables/useSave'
+import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrases'
+import type { BodyRegion } from './data/hamsterPhrases'
 
-const { currentState, triggerHappy, feedHamster, setState } = useHamster()
+const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
 const { coins, ownedFoods, buyFood, useFood, startCoinTimer, stopCoinTimer } = useInventory()
 const {
   isOnAdventure,
@@ -118,15 +131,36 @@ const showPostcards = ref(false)
 const showSouvenirs = ref(false)
 const showSettings = ref(false)
 
+// Speech bubble
+const speechText = ref('')
+const speechVisible = ref(false)
+
+// Hover cooldown
+let lastHoverSpeechTime = 0
+
 // Any popup open?
 const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value || showSettings.value
 )
 
+// Click debounce: distinguish single click from double click
+let clickTimer: ReturnType<typeof setTimeout> | null = null
+let pendingRegion: BodyRegion | null = null
+
 // Drag: only on left click, and not when menu/popup is open
 function onMouseDown(e: MouseEvent) {
   // Only left button (button === 0), skip right click
   if (e.button !== 0) return
+  if (menuVisible.value || anyPopupOpen.value) return
+  try {
+    getCurrentWindow().startDragging()
+  } catch {
+    // Not in Tauri
+  }
+}
+
+/** Called when click misses hamster pixels — start window drag */
+function onMissClick(_e: MouseEvent) {
   if (menuVisible.value || anyPopupOpen.value) return
   try {
     getCurrentWindow().startDragging()
@@ -146,8 +180,49 @@ function closeMenu() {
 }
 
 function onDoubleClick() {
+  // Cancel pending single-click
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+    pendingRegion = null
+  }
   closeMenu()
   triggerHappy()
+}
+
+// Interaction: region click with 250ms debounce to avoid conflict with dblclick
+function onRegionClick(region: BodyRegion) {
+  pendingRegion = region
+  if (clickTimer) clearTimeout(clickTimer)
+  clickTimer = setTimeout(() => {
+    if (pendingRegion) {
+      handleRegionClick(pendingRegion)
+      pendingRegion = null
+    }
+    clickTimer = null
+  }, 250)
+}
+
+function handleRegionClick(region: BodyRegion) {
+  // Show speech bubble with random phrase
+  const phrases = CLICK_PHRASES[region]
+  speechText.value = phrases[Math.floor(Math.random() * phrases.length)]
+  speechVisible.value = true
+
+  // Trigger reaction animation
+  const reaction = REACTION_MAP[region]
+  triggerReaction(reaction.state, reaction.duration)
+}
+
+// Interaction: region hover with cooldown + probability
+function onRegionHover(region: BodyRegion | null) {
+  if (!region) return
+  const now = Date.now()
+  if (now - lastHoverSpeechTime < 5000) return // 5s cooldown
+  if (Math.random() > 0.3) return // 30% chance
+  lastHoverSpeechTime = now
+  speechText.value = HOVER_PHRASES[Math.floor(Math.random() * HOVER_PHRASES.length)]
+  speechVisible.value = true
 }
 
 // Menu actions
@@ -244,6 +319,7 @@ onUnmounted(() => {
   stopCoinTimer()
   stopAutoSave()
   if (adventureTimer) clearInterval(adventureTimer)
+  if (clickTimer) clearTimeout(clickTimer)
 })
 </script>
 
@@ -269,6 +345,5 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 120px;
   height: 120px;
-  pointer-events: none; /* Let mousedown pass through to app-container for dragging */
 }
 </style>

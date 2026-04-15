@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 export type HamsterState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
 
@@ -37,6 +37,21 @@ function pickNextState(): HamsterState {
 export function useHamster() {
   const currentState = ref<HamsterState>('idle')
   let timer: ReturnType<typeof setTimeout> | null = null
+
+  // Reaction system: temporarily override displayed state
+  const reactionState = ref<HamsterState | null>(null)
+  let reactionTimer: ReturnType<typeof setTimeout> | null = null
+
+  function triggerReaction(state: HamsterState, durationMs = 1500) {
+    if (reactionTimer) clearTimeout(reactionTimer)
+    reactionState.value = state
+    reactionTimer = setTimeout(() => {
+      reactionState.value = null
+    }, durationMs)
+  }
+
+  /** Display state: reaction state takes priority over current state */
+  const displayState = computed(() => reactionState.value ?? currentState.value)
 
   function scheduleNext() {
     const config = stateConfigs[currentState.value]
@@ -80,8 +95,10 @@ export function useHamster() {
 
   return {
     currentState,
+    displayState,
     triggerHappy,
     feedHamster,
     setState,
+    triggerReaction,
   }
 }

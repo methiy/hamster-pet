@@ -48,6 +48,13 @@ export class PixelRenderer {
     this.ctx.putImageData(this.imageData, 0, 0)
   }
 
+  /** Get the alpha value of a pixel at (x, y) from the current imageData */
+  getPixelAlpha(x: number, y: number): number {
+    if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return 0
+    const i = (y * SIZE + x) * 4
+    return this.imageData.data[i + 3]
+  }
+
   /** Clear the canvas to fully transparent */
   clear(): void {
     this.ctx.clearRect(0, 0, SIZE, SIZE)
