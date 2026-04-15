@@ -13,6 +13,7 @@ import { eatingAnimation } from '../sprites/frames/eating'
 import { sleepingAnimation } from '../sprites/frames/sleeping'
 import { runningAnimation } from '../sprites/frames/running'
 import { happyAnimation } from '../sprites/frames/happy'
+import { hidingAnimation } from '../sprites/frames/hiding'
 import type { AnimationDef, PixelFrame } from '../sprites/types'
 
 export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
@@ -39,6 +40,7 @@ function getAnimation(state: SpriteState): AnimationDef {
     case 'sleeping': return sleepingAnimation
     case 'running': return runningAnimation
     case 'happy': return happyAnimation
+    case 'hiding': return hidingAnimation
     default: return idleAnimation
   }
 }
