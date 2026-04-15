@@ -267,8 +267,8 @@ onUnmounted(() => {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 200px;
-  height: 200px;
+  width: 120px;
+  height: 120px;
   pointer-events: none; /* Let mousedown pass through to app-container for dragging */
 }
 </style>

@@ -110,16 +110,16 @@ onUnmounted(() => {
 
 <style scoped>
 .hamster-sprite {
-  width: 200px;
-  height: 200px;
+  width: 120px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .hamster-sprite canvas {
-  width: 200px;
-  height: 200px;
+  width: 120px;
+  height: 120px;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
