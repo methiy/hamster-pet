@@ -10,6 +10,7 @@ import { PixelRenderer } from '../sprites/renderer'
 import { decodeFrame } from '../sprites/types'
 import { idleAnimation } from '../sprites/frames/idle'
 import { eatingAnimation } from '../sprites/frames/eating'
+import { sleepingAnimation } from '../sprites/frames/sleeping'
 import type { AnimationDef, PixelFrame } from '../sprites/types'
 
 export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
@@ -33,6 +34,7 @@ function getAnimation(state: SpriteState): AnimationDef {
   switch (state) {
     case 'idle': return idleAnimation
     case 'eating': return eatingAnimation
+    case 'sleeping': return sleepingAnimation
     default: return idleAnimation
   }
 }
