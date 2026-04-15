@@ -11,7 +11,7 @@
             class="postcard-slot"
             :class="{ collected: isCollected(loc.id) }"
           >
-            <div v-if="isCollected(loc.id)" class="postcard-card">
+            <div v-if="isCollected(loc.id)" class="postcard-card" @click="viewingPostcard = loc.id">
               <svg viewBox="0 0 160 100" class="postcard-svg">
                 <component :is="() => renderScene(loc.id)" />
               </svg>
@@ -28,12 +28,22 @@
         </div>
       </div>
     </div>
+
+    <Card3DViewer :visible="viewingPostcard !== null" @close="viewingPostcard = null">
+      <div class="postcard-detail" v-if="viewingPostcard">
+        <svg viewBox="0 0 160 100" class="postcard-detail-svg">
+          <component :is="() => renderScene(viewingPostcard!)" />
+        </svg>
+        <div class="postcard-detail-name">{{ getLocationName(viewingPostcard) }}</div>
+      </div>
+    </Card3DViewer>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref } from 'vue'
 import { locations } from '../data/locations'
+import Card3DViewer from './Card3DViewer.vue'
 
 const props = defineProps<{
   collectedPostcards: Set<string>
@@ -46,9 +56,15 @@ const emit = defineEmits<{
 const allLocations = locations
 
 const collectedCount = computed(() => props.collectedPostcards.size)
+const viewingPostcard = ref<string | null>(null)
 
 function isCollected(id: string): boolean {
   return props.collectedPostcards.has(id)
+}
+
+function getLocationName(id: string): string {
+  const loc = locations.find(l => l.id === id)
+  return loc ? `${loc.emoji} ${loc.name}` : ''
 }
 
 function renderScene(locationId: string) {
@@ -357,5 +373,36 @@ function renderScene(locationId: string) {
   margin-top: 12px;
   font-size: 13px;
   color: #999;
+}
+
+.postcard-card {
+  cursor: pointer;
+}
+
+.postcard-card:hover {
+  opacity: 0.85;
+}
+
+.postcard-detail {
+  width: 320px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.postcard-detail-svg {
+  width: 100%;
+  display: block;
+}
+
+.postcard-detail-name {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 8px;
+  color: #5C4033;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 </style>

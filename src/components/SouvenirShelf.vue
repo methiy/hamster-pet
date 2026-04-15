@@ -13,7 +13,7 @@
           <div v-if="legendaryItems.length > 0" class="rarity-section">
             <div class="rarity-label legendary-label">✨ 传说</div>
             <div class="souvenir-grid">
-              <div v-for="item in legendaryItems" :key="item.id" class="souvenir-item legendary">
+              <div v-for="item in legendaryItems" :key="item.id" class="souvenir-item legendary" @click="viewingItem = item">
                 <span class="souvenir-emoji">{{ item.emoji }}</span>
                 <span class="souvenir-name">{{ item.name }}</span>
                 <span v-if="item.count > 1" class="souvenir-count">×{{ item.count }}</span>
@@ -24,7 +24,7 @@
           <div v-if="rareItems.length > 0" class="rarity-section">
             <div class="rarity-label rare-label">💜 稀有</div>
             <div class="souvenir-grid">
-              <div v-for="item in rareItems" :key="item.id" class="souvenir-item rare">
+              <div v-for="item in rareItems" :key="item.id" class="souvenir-item rare" @click="viewingItem = item">
                 <span class="souvenir-emoji">{{ item.emoji }}</span>
                 <span class="souvenir-name">{{ item.name }}</span>
                 <span v-if="item.count > 1" class="souvenir-count">×{{ item.count }}</span>
@@ -35,7 +35,7 @@
           <div v-if="commonItems.length > 0" class="rarity-section">
             <div class="rarity-label common-label">🤍 普通</div>
             <div class="souvenir-grid">
-              <div v-for="item in commonItems" :key="item.id" class="souvenir-item common">
+              <div v-for="item in commonItems" :key="item.id" class="souvenir-item common" @click="viewingItem = item">
                 <span class="souvenir-emoji">{{ item.emoji }}</span>
                 <span class="souvenir-name">{{ item.name }}</span>
                 <span v-if="item.count > 1" class="souvenir-count">×{{ item.count }}</span>
@@ -49,12 +49,21 @@
         </div>
       </div>
     </div>
+
+    <Card3DViewer :visible="viewingItem !== null" @close="viewingItem = null">
+      <div class="souvenir-detail" v-if="viewingItem">
+        <div class="souvenir-detail-emoji">{{ viewingItem.emoji }}</div>
+        <div class="souvenir-detail-name">{{ viewingItem.name }}</div>
+        <div class="souvenir-detail-rarity" :class="viewingItem.rarity">{{ rarityLabel(viewingItem.rarity) }}</div>
+      </div>
+    </Card3DViewer>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { souvenirs } from '../data/souvenirs'
+import Card3DViewer from './Card3DViewer.vue'
 
 const props = defineProps<{
   collectedSouvenirs: string[]
@@ -97,6 +106,12 @@ const legendaryItems = computed(() => sortedItems.value.filter(i => i.rarity ===
 const rareItems = computed(() => sortedItems.value.filter(i => i.rarity === 'rare'))
 const commonItems = computed(() => sortedItems.value.filter(i => i.rarity === 'common'))
 const totalUnique = computed(() => sortedItems.value.length)
+const viewingItem = ref<DisplayItem | null>(null)
+
+function rarityLabel(rarity: string): string {
+  const labels: Record<string, string> = { common: '普通', rare: '稀有', legendary: '传说' }
+  return labels[rarity] ?? rarity
+}
 </script>
 
 <style scoped>
@@ -204,6 +219,11 @@ const totalUnique = computed(() => sortedItems.value.length)
   align-items: center;
   gap: 2px;
   box-shadow: 0 1px 3px rgba(92, 64, 51, 0.1);
+  cursor: pointer;
+}
+
+.souvenir-item:hover {
+  opacity: 0.85;
 }
 
 .souvenir-item.legendary {
@@ -235,6 +255,51 @@ const totalUnique = computed(() => sortedItems.value.length)
   text-align: center;
   margin-top: 12px;
   font-size: 13px;
+  color: #999;
+}
+
+.souvenir-detail {
+  width: 220px;
+  background: white;
+  border-radius: 12px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.souvenir-detail-emoji {
+  font-size: 64px;
+  line-height: 1.1;
+}
+
+.souvenir-detail-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #5C4033;
+}
+
+.souvenir-detail-rarity {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 6px;
+}
+
+.souvenir-detail-rarity.legendary {
+  background: rgba(255, 215, 0, 0.2);
+  color: #B8860B;
+}
+
+.souvenir-detail-rarity.rare {
+  background: rgba(147, 112, 219, 0.15);
+  color: #7B68EE;
+}
+
+.souvenir-detail-rarity.common {
+  background: rgba(92, 64, 51, 0.08);
   color: #999;
 }
 </style>
