@@ -33,9 +33,8 @@ let currentFrameIndex = 0
 let decodedFrames: PixelFrame[] = []
 let currentAnimation: AnimationDef = idleAnimation
 
-/** Map state names to their AnimationDef — more states added in later tasks */
+/** Map state names to their AnimationDef */
 function getAnimation(state: SpriteState): AnimationDef {
-  // All states fall back to idle until their frame files are created
   switch (state) {
     case 'idle': return idleAnimation
     case 'eating': return eatingAnimation
@@ -45,7 +44,6 @@ function getAnimation(state: SpriteState): AnimationDef {
     case 'hiding': return hidingAnimation
     case 'adventure_out': return adventureOutAnimation
     case 'adventure_back': return adventureBackAnimation
-    default: return idleAnimation
   }
 }
 
