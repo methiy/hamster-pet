@@ -97,7 +97,7 @@ function onBuyScarf() {
   justify-content: center;
   z-index: 5000;
   padding: 10px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .shop-window {

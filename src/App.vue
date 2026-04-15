@@ -61,6 +61,11 @@
       :collected-souvenirs="collectedSouvenirs"
       @close="showSouvenirs = false"
     />
+
+    <SettingsPanel
+      v-if="showSettings"
+      @close="showSettings = false"
+    />
   </div>
 </template>
 
@@ -74,6 +79,7 @@ import ShopWindow from './components/ShopWindow.vue'
 import FeedMenu from './components/FeedMenu.vue'
 import PostcardGallery from './components/PostcardGallery.vue'
 import SouvenirShelf from './components/SouvenirShelf.vue'
+import SettingsPanel from './components/SettingsPanel.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -110,10 +116,11 @@ const showShop = ref(false)
 const showFeed = ref(false)
 const showPostcards = ref(false)
 const showSouvenirs = ref(false)
+const showSettings = ref(false)
 
 // Any popup open?
 const anyPopupOpen = computed(() =>
-  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value
+  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value || showSettings.value
 )
 
 // Drag: only on left click, and not when menu/popup is open
@@ -191,6 +198,7 @@ function onSouvenir() {
 
 function onSettings() {
   closeMenu()
+  showSettings.value = true
 }
 
 async function onQuit() {

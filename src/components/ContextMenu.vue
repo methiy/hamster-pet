@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="context-overlay" @click="emit('close')">
+    <div v-if="visible" class="context-overlay" @click="emit('close')" @contextmenu.prevent="emit('close')">
       <div class="context-menu" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
         <div class="menu-item" @click="emit('feed')">🍽️ 喂食</div>
         <div class="menu-item" @click="emit('shop')">🏪 商店</div>
