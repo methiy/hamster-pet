@@ -15,4 +15,7 @@ export const PALETTE: string[] = [
   '#f5d76e', // 10: food yellow (eating)
   '#cccccc', // 11: wheel grey (running)
   '#e0d5c0', // 12: teeth outline
+  '#b4783c', // 13: warm brown (AI-generated)
+  '#8c5a2d', // 14: dark brown (AI-generated)
+  '#ffe6c8', // 15: highlight cream (AI-generated)
 ]
