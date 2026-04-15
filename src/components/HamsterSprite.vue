@@ -9,6 +9,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { PixelRenderer } from '../sprites/renderer'
 import { decodeFrame } from '../sprites/types'
 import { idleAnimation } from '../sprites/frames/idle'
+import { eatingAnimation } from '../sprites/frames/eating'
 import type { AnimationDef, PixelFrame } from '../sprites/types'
 
 export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
@@ -31,6 +32,7 @@ function getAnimation(state: SpriteState): AnimationDef {
   // All states fall back to idle until their frame files are created
   switch (state) {
     case 'idle': return idleAnimation
+    case 'eating': return eatingAnimation
     default: return idleAnimation
   }
 }
