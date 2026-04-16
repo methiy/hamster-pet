@@ -39,6 +39,9 @@
         @region-click="onRegionClick"
         @region-hover="onRegionHover"
         @miss-click="onMissClick"
+        @grab-start="onGrabStart"
+        @grab-move="onGrabMove"
+        @grab-end="onGrabEnd"
       />
     </div>
 
@@ -55,6 +58,9 @@
           @region-click="onRegionClick"
           @region-hover="onRegionHover"
           @miss-click="onMissClick"
+          @grab-start="onGrabStart"
+          @grab-move="onGrabMove"
+          @grab-end="onGrabEnd"
         />
       </div>
       <div class="work-game-area">
@@ -152,6 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { LogicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -174,7 +181,7 @@ import { useActivitySensor } from './composables/useActivitySensor'
 import { useActivityReaction } from './composables/useActivityReaction'
 import { usePushAnimation } from './composables/usePushAnimation'
 import { useAppMode } from './composables/useAppMode'
-import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrases'
+import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { decorations } from './data/decorations'
@@ -413,6 +420,78 @@ function onRegionHover(region: BodyRegion | null) {
   if (Math.random() > 0.3) return
   lastHoverSpeechTime = now
   speechText.value = HOVER_PHRASES[Math.floor(Math.random() * HOVER_PHRASES.length)]
+  speechVisible.value = true
+}
+
+// --- Grab / lift interaction ---
+let grabScreenX = 0
+let grabScreenY = 0
+let grabWindowX = 0
+let grabWindowY = 0
+let grabHoldTimer: ReturnType<typeof setTimeout> | null = null
+const isGrabbing = ref(false)
+
+function pickRandom(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+async function onGrabStart() {
+  isGrabbing.value = true
+
+  // Remember window position at grab start
+  try {
+    const pos = await getCurrentWindow().outerPosition()
+    grabWindowX = pos.x
+    grabWindowY = pos.y
+    grabScreenX = 0 // will be set on first move
+    grabScreenY = 0
+  } catch { /* Not in Tauri */ }
+
+  // Scared reaction + speech
+  triggerReaction('hiding', 30000) // long duration, will be cleared on release
+  speechText.value = pickRandom(GRAB_PHRASES)
+  speechVisible.value = true
+
+  // If held for a while, say more stuff
+  grabHoldTimer = setTimeout(() => {
+    if (isGrabbing.value) {
+      speechText.value = pickRandom(GRAB_HOLDING_PHRASES)
+      speechVisible.value = true
+    }
+  }, 3000)
+}
+
+async function onGrabMove(screenX: number, screenY: number) {
+  if (!isGrabbing.value) return
+
+  // Track the first move to establish delta baseline
+  if (grabScreenX === 0 && grabScreenY === 0) {
+    grabScreenX = screenX
+    grabScreenY = screenY
+    return
+  }
+
+  const dx = screenX - grabScreenX
+  const dy = screenY - grabScreenY
+
+  try {
+    await getCurrentWindow().setPosition(
+      new LogicalPosition(grabWindowX + dx, grabWindowY + dy)
+    )
+  } catch { /* Not in Tauri */ }
+}
+
+function onGrabEnd() {
+  isGrabbing.value = false
+
+  if (grabHoldTimer) {
+    clearTimeout(grabHoldTimer)
+    grabHoldTimer = null
+  }
+
+  // Relief reaction + speech
+  triggerReaction('happy', 2000)
+  speechText.value = pickRandom(GRAB_RELEASE_PHRASES)
   speechVisible.value = true
 }
 

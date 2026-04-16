@@ -20,3 +20,36 @@ export const REACTION_MAP: Record<BodyRegion, { state: 'happy' | 'hiding'; durat
   tail:  { state: 'hiding', duration: 1000 },
   body:  { state: 'happy',  duration: 1000 },
 }
+
+/** 被掂起来时的台词 */
+export const GRAB_PHRASES: string[] = [
+  '哇啊啊啊！！',
+  '放我下来！！',
+  '好高好害怕！！',
+  '呜呜呜不要拎我~',
+  '救命啊——！',
+  '要掉下去了！！',
+  '晕...晕了...',
+  '地球好远...',
+]
+
+/** 被掂起来一段时间后说的 */
+export const GRAB_HOLDING_PHRASES: string[] = [
+  '还...还没放我下来吗...',
+  '其实...还挺高的...',
+  '你手不酸吗？',
+  '我好重的你知道吗！',
+  '好晕好晕...',
+  '我要飞了~',
+]
+
+/** 被放下时的台词 */
+export const GRAB_RELEASE_PHRASES: string[] = [
+  '呼...终于落地了',
+  '屁屁好痛！',
+  '还好还好...安全着陆',
+  '腿好软...站不稳了',
+  '下次轻点嘛！',
+  '吓死我了...心脏砰砰跳',
+  '再也不要了！！',
+]

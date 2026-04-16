@@ -1,5 +1,5 @@
 <template>
-  <div class="hamster-sprite">
+  <div class="hamster-sprite" :class="{ 'hamster-lifted': isGrabbed }">
     <canvas ref="canvasRef" :class="animClass"></canvas>
     <div
       class="hit-layer"
@@ -40,10 +40,14 @@ const emit = defineEmits<{
   'region-click': [region: BodyRegion]
   'region-hover': [region: BodyRegion | null]
   'miss-click': [e: MouseEvent]
+  'grab-start': []
+  'grab-move': [screenX: number, screenY: number]
+  'grab-end': []
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const animClass = ref('')
+const isGrabbed = ref(false)
 
 let renderer: ImageRenderer | null = null
 let animationId: number | null = null
@@ -51,6 +55,40 @@ let lastFrameTime = 0
 let currentFrameIndex = 0
 let loadedImages: HTMLImageElement[] = []
 let currentAnimation: ImageAnimationDef = idleAnimation
+
+// --- Long press / grab detection ---
+const LONG_PRESS_MS = 300
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
+let mouseDownOnHamster = false
+let grabActive = false
+
+function clearLongPress() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+function onGlobalMouseMove(e: MouseEvent) {
+  if (!grabActive) return
+  emit('grab-move', e.screenX, e.screenY)
+}
+
+function onGlobalMouseUp() {
+  if (grabActive) {
+    grabActive = false
+    isGrabbed.value = false
+    emit('grab-end')
+
+    // Apply drop bounce
+    animClass.value = 'drop-bounce'
+    setTimeout(() => { animClass.value = '' }, 500)
+  }
+  mouseDownOnHamster = false
+  clearLongPress()
+  window.removeEventListener('mousemove', onGlobalMouseMove)
+  window.removeEventListener('mouseup', onGlobalMouseUp)
+}
 
 /** Preload all frame images for an animation */
 function preloadImages(urls: string[]): Promise<HTMLImageElement[]> {
@@ -123,7 +161,6 @@ function tick(timestamp: number): void {
 }
 
 // ---- Hit detection ----
-// Coordinates now map to 128×128 canvas instead of 48×48
 function getPixelCoords(e: MouseEvent): { x: number; y: number } | null {
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const x = Math.floor(((e.clientX - rect.left) / rect.width) * CANVAS_SIZE)
@@ -137,24 +174,44 @@ function isHamsterPixel(x: number, y: number): boolean {
   return renderer.getPixelAlpha(x, y) > 0
 }
 
-// Region detection scaled from 48 → 128 (factor ≈ 2.667)
+// Region detection scaled from 48 → 128
 function detectRegion(x: number, y: number): BodyRegion {
-  if (y <= 27) return 'ear'        // was 10 @ 48px → 27 @ 128px
-  if (y <= 64) return 'head'       // was 24 → 64
-  if (y <= 96 && x >= 37 && x <= 91) return 'belly' // was 36, 14-34 → 96, 37-91
-  if (y >= 99) return 'paw'        // was 37 → 99
-  if (x <= 21 || x >= 107) return 'tail'  // was 8, 40 → 21, 107
+  if (y <= 27) return 'ear'
+  if (y <= 64) return 'head'
+  if (y <= 96 && x >= 37 && x <= 91) return 'belly'
+  if (y >= 99) return 'paw'
+  if (x <= 21 || x >= 107) return 'tail'
   return 'body'
 }
 
 function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
   const coords = getPixelCoords(e)
   if (coords && isHamsterPixel(coords.x, coords.y)) {
     e.stopPropagation()
+    mouseDownOnHamster = true
+
+    // Start long-press timer
+    clearLongPress()
+    longPressTimer = setTimeout(() => {
+      if (mouseDownOnHamster) {
+        // Long press triggered → start grab
+        grabActive = true
+        isGrabbed.value = true
+        emit('grab-start')
+      }
+    }, LONG_PRESS_MS)
+
+    // Listen globally so we catch mouseup even outside the element
+    window.addEventListener('mousemove', onGlobalMouseMove)
+    window.addEventListener('mouseup', onGlobalMouseUp)
   }
 }
 
 function onClick(e: MouseEvent) {
+  // If we were grabbing, don't fire click
+  if (grabActive || isGrabbed.value) return
+
   const coords = getPixelCoords(e)
   if (!coords || !isHamsterPixel(coords.x, coords.y)) {
     emit('miss-click', e)
@@ -201,6 +258,9 @@ onUnmounted(() => {
     cancelAnimationFrame(animationId)
     animationId = null
   }
+  clearLongPress()
+  window.removeEventListener('mousemove', onGlobalMouseMove)
+  window.removeEventListener('mouseup', onGlobalMouseUp)
 })
 </script>
 
@@ -212,6 +272,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   position: relative;
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
 
 .hamster-sprite canvas {
@@ -227,6 +288,26 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+/* Lifted / grabbed state */
+.hamster-lifted {
+  transform: scale(1.15) translateY(-12px);
+  filter: drop-shadow(0 8px 6px rgba(0, 0, 0, 0.25));
+  cursor: grabbing !important;
+}
+
+.hamster-lifted .hit-layer {
+  cursor: grabbing;
+}
+
+.hamster-lifted canvas {
+  animation: wiggle 0.4s ease-in-out infinite alternate;
+}
+
+/* Drop bounce when released */
+.drop-bounce canvas {
+  animation: drop-land 0.5s ease-out;
+}
+
 /* Micro-animations */
 .shake {
   animation: shake 0.3s ease-in-out;
@@ -234,6 +315,19 @@ onUnmounted(() => {
 
 .bounce {
   animation: bounce 0.4s ease-out;
+}
+
+@keyframes wiggle {
+  0% { transform: rotate(-3deg); }
+  100% { transform: rotate(3deg); }
+}
+
+@keyframes drop-land {
+  0% { transform: translateY(-8px) scale(1.05); }
+  40% { transform: translateY(4px) scale(0.92, 1.08); }
+  60% { transform: translateY(-2px) scale(1.02); }
+  80% { transform: translateY(1px) scale(0.98, 1.01); }
+  100% { transform: translateY(0) scale(1); }
 }
 
 @keyframes shake {
