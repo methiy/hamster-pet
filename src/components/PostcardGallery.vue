@@ -244,6 +244,86 @@ function renderScene(locationId: string) {
       h('text', { x: 85, y: 65, fill: 'white', 'font-size': 7, opacity: 0.5 }, '❄'),
       h('text', { x: 40, y: 15, fill: 'white', 'font-size': 6, opacity: 0.6 }, '❄'),
     ]),
+    mine: () => h('g', [
+      h('rect', { x: 0, y: 0, width: 160, height: 100, fill: '#2C2C2C' }),
+      h('rect', { x: 0, y: 70, width: 160, height: 30, fill: '#3D3D3D' }),
+      // Cave walls
+      h('polygon', { points: '0,0 30,25 0,50', fill: '#4A4A4A' }),
+      h('polygon', { points: '160,0 130,30 160,60', fill: '#4A4A4A' }),
+      // Rails
+      h('line', { x1: 20, y1: 85, x2: 140, y2: 85, stroke: '#8B8B8B', 'stroke-width': 2 }),
+      h('line', { x1: 25, y1: 90, x2: 135, y2: 90, stroke: '#8B8B8B', 'stroke-width': 2 }),
+      // Rail ties
+      h('rect', { x: 40, y: 83, width: 3, height: 10, fill: '#6B4E16' }),
+      h('rect', { x: 60, y: 83, width: 3, height: 10, fill: '#6B4E16' }),
+      h('rect', { x: 80, y: 83, width: 3, height: 10, fill: '#6B4E16' }),
+      h('rect', { x: 100, y: 83, width: 3, height: 10, fill: '#6B4E16' }),
+      h('rect', { x: 120, y: 83, width: 3, height: 10, fill: '#6B4E16' }),
+      // Gems in walls
+      h('polygon', { points: '35,35 40,28 45,35 40,38', fill: '#E74C3C', opacity: 0.9 }),
+      h('polygon', { points: '110,25 114,20 118,25 114,28', fill: '#3498DB', opacity: 0.9 }),
+      h('polygon', { points: '75,45 79,40 83,45 79,48', fill: '#2ECC71', opacity: 0.9 }),
+      // Sparkles
+      h('text', { x: 42, y: 32, fill: '#FFD700', 'font-size': 6, opacity: 0.8 }, '✨'),
+      h('text', { x: 116, y: 22, fill: '#FFD700', 'font-size': 5, opacity: 0.6 }, '✨'),
+      h('text', { x: 80, y: 42, fill: '#FFD700', 'font-size': 5, opacity: 0.7 }, '✨'),
+      // Lantern
+      h('rect', { x: 58, y: 55, width: 2, height: 10, fill: '#8B8B8B' }),
+      h('rect', { x: 54, y: 52, width: 10, height: 5, fill: '#FFD700', rx: 1 }),
+      h('circle', { cx: 59, cy: 54, r: 6, fill: '#FFD700', opacity: 0.2 }),
+    ]),
+    island: () => h('g', [
+      h('rect', { x: 0, y: 0, width: 160, height: 50, fill: '#87CEEB' }),
+      h('rect', { x: 0, y: 50, width: 160, height: 20, fill: '#00CED1' }),
+      h('rect', { x: 0, y: 70, width: 160, height: 30, fill: '#F4D35E' }),
+      h('circle', { cx: 135, cy: 18, r: 14, fill: '#FFD700' }),
+      // Waves
+      h('path', { d: 'M0,55 Q15,50 30,55 Q45,60 60,55 Q75,50 90,55 Q105,60 120,55 Q135,50 150,55 Q160,58 160,55', fill: 'none', stroke: '#4682B4', 'stroke-width': 1.5 }),
+      // Palm tree 1
+      h('path', { d: 'M50,75 Q48,50 52,25', fill: 'none', stroke: '#8B6914', 'stroke-width': 4 }),
+      h('path', { d: 'M52,25 Q70,18 75,30', fill: 'none', stroke: '#3CB371', 'stroke-width': 3 }),
+      h('path', { d: 'M52,25 Q35,18 30,28', fill: 'none', stroke: '#3CB371', 'stroke-width': 3 }),
+      h('path', { d: 'M52,25 Q52,10 58,15', fill: 'none', stroke: '#3CB371', 'stroke-width': 3 }),
+      // Palm tree 2
+      h('path', { d: 'M95,78 Q93,55 97,35', fill: 'none', stroke: '#8B6914', 'stroke-width': 3 }),
+      h('path', { d: 'M97,35 Q112,30 115,40', fill: 'none', stroke: '#2E8B57', 'stroke-width': 2.5 }),
+      h('path', { d: 'M97,35 Q82,30 80,38', fill: 'none', stroke: '#2E8B57', 'stroke-width': 2.5 }),
+      // Footprints (hamster!)
+      h('circle', { cx: 60, cy: 82, r: 1.5, fill: '#D2B48C' }),
+      h('circle', { cx: 65, cy: 80, r: 1.5, fill: '#D2B48C' }),
+      h('circle', { cx: 70, cy: 82, r: 1.5, fill: '#D2B48C' }),
+      h('circle', { cx: 75, cy: 80, r: 1.5, fill: '#D2B48C' }),
+      // Coconut
+      h('circle', { cx: 48, cy: 75, r: 3, fill: '#8B4513' }),
+    ]),
+    observatory: () => h('g', [
+      h('rect', { x: 0, y: 0, width: 160, height: 100, fill: '#1a1a3e' }),
+      h('rect', { x: 0, y: 75, width: 160, height: 25, fill: '#2d2d5e' }),
+      // Stars
+      h('circle', { cx: 15, cy: 12, r: 1, fill: 'white' }),
+      h('circle', { cx: 45, cy: 8, r: 1.5, fill: 'white' }),
+      h('circle', { cx: 80, cy: 15, r: 1, fill: 'white' }),
+      h('circle', { cx: 110, cy: 5, r: 1.5, fill: '#FFD700' }),
+      h('circle', { cx: 140, cy: 18, r: 1, fill: 'white' }),
+      h('circle', { cx: 25, cy: 30, r: 1, fill: 'white' }),
+      h('circle', { cx: 55, cy: 25, r: 1, fill: '#FFD700' }),
+      h('circle', { cx: 130, cy: 35, r: 1, fill: 'white' }),
+      h('circle', { cx: 95, cy: 28, r: 1.5, fill: 'white' }),
+      // Milky way
+      h('ellipse', { cx: 80, cy: 20, rx: 70, ry: 8, fill: 'rgba(255,255,255,0.05)', transform: 'rotate(-15,80,20)' }),
+      h('ellipse', { cx: 80, cy: 20, rx: 50, ry: 4, fill: 'rgba(255,255,255,0.08)', transform: 'rotate(-15,80,20)' }),
+      // Observatory dome
+      h('rect', { x: 55, y: 55, width: 50, height: 25, fill: '#4a4a6a' }),
+      h('path', { d: 'M55,55 Q80,30 105,55', fill: '#5a5a7a' }),
+      // Dome slit
+      h('rect', { x: 78, y: 35, width: 4, height: 20, fill: '#1a1a3e' }),
+      // Telescope
+      h('line', { x1: 80, y1: 45, x2: 65, y2: 25, stroke: '#C0C0C0', 'stroke-width': 3 }),
+      h('circle', { cx: 63, cy: 23, r: 4, fill: 'none', stroke: '#C0C0C0', 'stroke-width': 1.5 }),
+      // Shooting star
+      h('line', { x1: 120, y1: 10, x2: 145, y2: 25, stroke: '#FFD700', 'stroke-width': 1.5, opacity: 0.8 }),
+      h('circle', { cx: 120, cy: 10, r: 2, fill: '#FFD700' }),
+    ]),
   }
 
   const sceneFn = scenes[locationId]
