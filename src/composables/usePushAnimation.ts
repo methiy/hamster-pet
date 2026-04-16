@@ -105,8 +105,8 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         appWindow.setPosition(new LogicalPosition(Math.round(hx), Math.round(hamsterY)))
           .catch(() => {})
 
-        // Move target foreground window via Rust command
-        invoke('move_foreground_window', { x: Math.round(tx), y: Math.round(targetWinY) })
+        // Move target foreground window via Rust command (captured HWND)
+        invoke('move_captured_window', { x: Math.round(tx), y: Math.round(targetWinY) })
           .catch(() => {})
 
         if (progress < 1) {
@@ -140,6 +140,10 @@ export function usePushAnimation(callbacks: PushCallbacks) {
 
     try {
       const appWindow = getCurrentWindow()
+
+      // Capture the target window's HWND before we start moving
+      // (so we move the correct window even after focus changes)
+      await invoke('capture_foreground_hwnd').catch(() => {})
 
       // 1. Remember current position
       const startPos = await appWindow.outerPosition()

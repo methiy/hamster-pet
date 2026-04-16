@@ -1,4 +1,8 @@
 use serde::Serialize;
+use std::sync::atomic::{AtomicIsize, Ordering};
+
+/// Stored HWND from capture_foreground_hwnd, used by move_captured_window
+static CAPTURED_HWND: AtomicIsize = AtomicIsize::new(0);
 
 #[derive(Debug, Serialize, Clone)]
 pub struct ActiveWindowInfo {
@@ -92,6 +96,38 @@ pub mod platform {
         }
     }
 
+    /// Capture the current foreground window handle for later use
+    pub fn capture_foreground_hwnd() -> bool {
+        unsafe {
+            let hwnd: HWND = GetForegroundWindow();
+            if hwnd.0.is_null() {
+                return false;
+            }
+            CAPTURED_HWND.store(hwnd.0 as isize, Ordering::SeqCst);
+            true
+        }
+    }
+
+    /// Move the previously captured window to (x, y)
+    pub fn move_captured_window(x: i32, y: i32) -> bool {
+        let raw = CAPTURED_HWND.load(Ordering::SeqCst);
+        if raw == 0 {
+            return false;
+        }
+        unsafe {
+            let hwnd = HWND(raw as *mut _);
+            SetWindowPos(
+                hwnd,
+                None,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            ).is_ok()
+        }
+    }
+
     unsafe fn get_process_name(pid: u32) -> Option<String> {
         let handle = OpenProcess(
             PROCESS_QUERY_LIMITED_INFORMATION,
@@ -148,6 +184,14 @@ pub mod platform {
     }
 
     pub fn move_foreground_window(_x: i32, _y: i32) -> bool {
+        false
+    }
+
+    pub fn capture_foreground_hwnd() -> bool {
+        false
+    }
+
+    pub fn move_captured_window(_x: i32, _y: i32) -> bool {
         false
     }
 }

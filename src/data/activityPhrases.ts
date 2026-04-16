@@ -27,8 +27,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'idle',
     reactionDuration: 2000,
-    cooldown: 5 * 60 * 1000,  // 5 minutes
-    pushChance: 0.15,
+    cooldown: 60 * 1000,  // 1 minute
+    pushChance: 0.30,
   },
   video: {
     phrases: [
@@ -41,8 +41,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'running',
     reactionDuration: 2000,
-    cooldown: 3 * 60 * 1000,  // 3 minutes
-    pushChance: 0.50,
+    cooldown: 45 * 1000,  // 45 seconds
+    pushChance: 0.60,
   },
   gaming: {
     phrases: [
@@ -55,8 +55,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'happy',
     reactionDuration: 2000,
-    cooldown: 4 * 60 * 1000,  // 4 minutes
-    pushChance: 0.40,
+    cooldown: 60 * 1000,  // 1 minute
+    pushChance: 0.50,
   },
   chatting: {
     phrases: [
@@ -68,8 +68,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'hiding',
     reactionDuration: 2000,
-    cooldown: 4 * 60 * 1000,  // 4 minutes
-    pushChance: 0.25,
+    cooldown: 60 * 1000,  // 1 minute
+    pushChance: 0.35,
   },
   browsing: {
     phrases: [
@@ -80,8 +80,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'idle',
     reactionDuration: 1500,
-    cooldown: 5 * 60 * 1000,  // 5 minutes
-    pushChance: 0.20,
+    cooldown: 60 * 1000,  // 1 minute
+    pushChance: 0.30,
   },
   idle: {
     phrases: [
@@ -94,18 +94,20 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
     ],
     reactionState: 'sleeping',
     reactionDuration: 3000,
-    cooldown: 3 * 60 * 1000,  // 3 minutes
+    cooldown: 90 * 1000,  // 1.5 minutes
     pushChance: 0.0,  // Can't push when user is idle
   },
   unknown: {
     phrases: [
       '主人在干嘛呀？',
       '看不懂你在做什么~',
+      '不管了，我来捣乱！',
+      '嘿嘿，让我推推这个窗口~',
     ],
     reactionState: 'idle',
     reactionDuration: 1500,
-    cooldown: 6 * 60 * 1000,  // 6 minutes
-    pushChance: 0.10,
+    cooldown: 90 * 1000,  // 1.5 minutes
+    pushChance: 0.25,
   },
 }
 

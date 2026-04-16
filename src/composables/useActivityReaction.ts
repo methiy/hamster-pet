@@ -40,7 +40,6 @@ export function useActivityReaction(
   }
 
   function tryReact(activity: ActivityType) {
-    if (activity === 'unknown') return
     if (isReacting.value) return
     if (isOnCooldown(activity)) return
 
@@ -79,19 +78,14 @@ export function useActivityReaction(
 
   // Watch for activity changes
   watch(currentActivity, (newActivity) => {
-    if (newActivity !== 'unknown') {
-      tryReact(newActivity)
-    }
+    tryReact(newActivity)
   })
 
   // Also periodically check (in case activity stays the same for a long time)
   function startPeriodicCheck() {
     checkTimer = setInterval(() => {
-      const activity = currentActivity.value
-      if (activity !== 'unknown') {
-        tryReact(activity)
-      }
-    }, 30000) // Check every 30 seconds
+      tryReact(currentActivity.value)
+    }, 15000) // Check every 15 seconds
   }
 
   function stopPeriodicCheck() {
