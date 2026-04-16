@@ -11,6 +11,13 @@
     "core:window:allow-start-resize-dragging",
     "core:window:allow-set-position",
     "core:window:allow-outer-position",
-    "shell:allow-open"
+    "shell:allow-open",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-skip-taskbar",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-resizable",
+    "core:event:default",
+    "core:event:allow-listen"
   ]
 }

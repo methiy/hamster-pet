@@ -1,6 +1,7 @@
 use tauri::Manager;
 
 mod activity;
+mod tray;
 
 use activity::{ActiveWindowInfo, IdleInfo};
 
@@ -21,8 +22,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time])
-        .setup(|_app| {
-            // Window is configured in tauri.conf.json
+        .setup(|app| {
+            tray::create_tray(&app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())

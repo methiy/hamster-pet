@@ -1,11 +1,13 @@
 <template>
   <div
     class="app-container"
+    :class="{ 'work-mode': isWorkMode }"
     @mousedown="onMouseDown"
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
-    <div class="hamster-area" :class="{ 'hamster-pushing': isPushing && !isWalking && !isWalkingBack, 'hamster-flipped': isWalkingBack }" :style="hamsterScaleStyle">
+    <!-- Normal mode: full pet view -->
+    <div v-if="!isWorkMode" class="hamster-area" :class="{ 'hamster-pushing': isPushing && !isWalking && !isWalkingBack, 'hamster-flipped': isWalkingBack }" :style="hamsterScaleStyle">
       <SpeechBubble
         :text="speechText"
         :visible="speechVisible"
@@ -40,6 +42,34 @@
       />
     </div>
 
+    <!-- Work mode: side-by-side layout -->
+    <div v-if="isWorkMode" class="work-layout">
+      <div class="work-hamster-area">
+        <SpeechBubble
+          :text="speechText"
+          :visible="speechVisible"
+          @hide="speechVisible = false"
+        />
+        <HamsterSprite
+          :state="displayState"
+          @region-click="onRegionClick"
+          @region-hover="onRegionHover"
+          @miss-click="onMissClick"
+        />
+      </div>
+      <div class="work-game-area">
+        <TypingGame
+          @close="exitWorkMode"
+          @correct="onTypingCorrect"
+          @mistake="onTypingMistake"
+          @word-complete="onTypingWordComplete"
+          @streak="onTypingStreak"
+          @idle="onTypingIdle"
+          @speech="onTypingSpeech"
+        />
+      </div>
+    </div>
+
     <ContextMenu
       :visible="menuVisible"
       :x="menuX"
@@ -49,6 +79,7 @@
       @postcard="onPostcard"
       @souvenir="onSouvenir"
       @wardrobe="onWardrobe"
+      @typing="onTypingMode"
       @settings="onSettings"
       @quit="onQuit"
       @close="closeMenu"
@@ -132,6 +163,7 @@ import SouvenirShelf from './components/SouvenirShelf.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastNotification from './components/ToastNotification.vue'
 import WardrobePanel from './components/WardrobePanel.vue'
+import TypingGame from './components/TypingGame.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -141,6 +173,7 @@ import { useToast } from './composables/useToast'
 import { useActivitySensor } from './composables/useActivitySensor'
 import { useActivityReaction } from './composables/useActivityReaction'
 import { usePushAnimation } from './composables/usePushAnimation'
+import { useAppMode } from './composables/useAppMode'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -155,8 +188,10 @@ const settings = ref<SettingsData>({
 })
 
 // --- Core composables ---
-const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
+const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction, pauseAutoTransition, resumeAutoTransition } = useHamster()
 const { showToast } = useToast()
+const { mode, setMode, initModeListener, destroyModeListener } = useAppMode()
+const isWorkMode = computed(() => mode.value === 'work')
 
 const {
   coins,
@@ -491,6 +526,47 @@ function onWardrobe() {
   showWardrobe.value = true
 }
 
+function onTypingMode() {
+  closeMenu()
+  setMode('work')
+  pauseAutoTransition()
+  setState('typing')
+}
+
+function exitWorkMode() {
+  setMode('normal')
+  resumeAutoTransition()
+  triggerHappy()
+}
+
+function onTypingCorrect() {
+  triggerReaction('running', 800)
+}
+
+function onTypingMistake() {
+  triggerReaction('hiding', 800)
+}
+
+function onTypingWordComplete(coinReward: number) {
+  coins.value += coinReward
+  triggerReaction('happy', 1200)
+  showToast({ type: 'success', icon: '🪙', title: `+${coinReward} 金币`, message: '打字完成！' })
+}
+
+function onTypingStreak(streak: number, coinReward: number) {
+  coins.value += coinReward
+  showToast({ type: 'reward', icon: '🔥', title: `${streak} 连击！`, message: `+${coinReward} 金币奖励` })
+}
+
+function onTypingIdle() {
+  triggerReaction('sleeping', 2000)
+}
+
+function onTypingSpeech(text: string) {
+  speechText.value = text
+  speechVisible.value = true
+}
+
 function onSettings() {
   closeMenu()
   showSettings.value = true
@@ -521,6 +597,17 @@ async function onQuit() {
   save()
   try { await getCurrentWindow().close() } catch { window.close() }
 }
+
+// --- Mode change watcher ---
+watch(mode, (newMode) => {
+  if (newMode === 'work') {
+    pauseAutoTransition()
+    setState('typing')
+  } else {
+    resumeAutoTransition()
+    triggerHappy()
+  }
+})
 
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
@@ -579,6 +666,7 @@ onMounted(() => {
   startCoinTimer(() => buffValues.value.coinMultiplier)
   startAutoSave()
   startPeriodicCheck()
+  initModeListener()
   adventureTimer = setInterval(pollAdventure, 5000)
   if (isOnAdventure.value) {
     setState('adventure_out')
@@ -590,6 +678,7 @@ onUnmounted(() => {
   stopCoinTimer()
   stopAutoSave()
   stopPeriodicCheck()
+  destroyModeListener()
   cancelAnimation()
   if (adventureTimer) clearInterval(adventureTimer)
   if (clickTimer) clearTimeout(clickTimer)
@@ -610,6 +699,17 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 
+.app-container.work-mode {
+  background: rgba(255, 248, 240, 0.95);
+  border-radius: 12px;
+  cursor: default;
+  overflow: hidden;
+}
+
+.app-container.work-mode:active {
+  cursor: default;
+}
+
 .hamster-area {
   position: absolute;
   bottom: 10px;
@@ -617,6 +717,31 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 120px;
   height: 120px;
+}
+
+/* Work mode layout */
+.work-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.work-hamster-area {
+  width: 140px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 252, 245, 0.5);
+}
+
+.work-game-area {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .decoration-layer {

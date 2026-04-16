@@ -26,6 +26,11 @@ interface SaveData {
     hasBoatTicket: boolean
     hasTelescope: boolean
   }
+  typingStats?: {
+    totalWordsTyped: number
+    bestWpm: number
+    lastDifficulty: string
+  }
 }
 
 const SAVE_KEY = 'hamster-pet-save'

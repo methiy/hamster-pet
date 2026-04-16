@@ -117,3 +117,10 @@ export const adventureBackAnimation: ImageAnimationDef = {
   fps: 8,
   loop: false,
 }
+
+// Typing: reuse running frames at fps=8 to simulate typing motion
+export const typingAnimation: ImageAnimationDef = {
+  frames: [running0, running1, running2, running3],
+  fps: 8,
+  loop: true,
+}
