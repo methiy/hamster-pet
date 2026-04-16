@@ -76,6 +76,8 @@
       v-if="showSettings"
       @close="showSettings = false"
     />
+
+    <ToastNotification />
   </div>
 </template>
 
@@ -91,6 +93,7 @@ import FeedMenu from './components/FeedMenu.vue'
 import PostcardGallery from './components/PostcardGallery.vue'
 import SouvenirShelf from './components/SouvenirShelf.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
+import ToastNotification from './components/ToastNotification.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
