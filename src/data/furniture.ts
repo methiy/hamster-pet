@@ -1,4 +1,5 @@
 import type { BuffEffect } from './decorations'
+import { furnIcons } from './icons'
 
 export type FurniturePosition = 'right' | 'left' | 'upper_right' | 'lower_left' | 'lower_right'
 
@@ -6,6 +7,7 @@ export interface Furniture {
   id: string
   name: string
   emoji: string
+  icon: string
   price: number
   position: FurniturePosition
   buff?: BuffEffect
@@ -17,6 +19,7 @@ export const furniture: Furniture[] = [
     id: 'wheel',
     name: '仓鼠跑轮',
     emoji: '🎡',
+    icon: furnIcons.wheel,
     price: 120,
     position: 'right',
     buff: { coinMultiplier: 0.5 },
@@ -25,6 +28,7 @@ export const furniture: Furniture[] = [
     id: 'nest',
     name: '温暖小窝',
     emoji: '🏠',
+    icon: furnIcons.nest,
     price: 150,
     position: 'left',
     offlineCoinCap: 120,
@@ -33,6 +37,7 @@ export const furniture: Furniture[] = [
     id: 'swing',
     name: '小秋千',
     emoji: '🪁',
+    icon: furnIcons.swing,
     price: 80,
     position: 'upper_right',
   },
@@ -40,6 +45,7 @@ export const furniture: Furniture[] = [
     id: 'sunflower_pot',
     name: '向日葵盆栽',
     emoji: '🌻',
+    icon: furnIcons.sunflower_pot,
     price: 60,
     position: 'lower_left',
   },
@@ -47,6 +53,7 @@ export const furniture: Furniture[] = [
     id: 'treasure_chest',
     name: '宝藏箱',
     emoji: '📦',
+    icon: furnIcons.treasure_chest,
     price: 200,
     position: 'lower_right',
     buff: { adventureCoinBonus: 0.5 },

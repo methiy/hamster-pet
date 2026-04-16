@@ -20,7 +20,7 @@
 
         <div v-if="activeTab === 'food'" class="items-grid">
           <div v-for="food in foods" :key="food.id" class="item-card">
-            <span class="item-emoji">{{ food.emoji }}</span>
+            <img class="item-icon" :src="food.icon" :alt="food.name" />
             <span class="item-name">{{ food.name }}</span>
             <span class="item-price">🪙 {{ food.price }}</span>
             <div v-if="food.effect" class="item-effect">
@@ -38,7 +38,7 @@
 
         <div v-if="activeTab === 'decoration'" class="items-grid">
           <div v-for="deco in decorations" :key="deco.id" class="item-card">
-            <span class="item-emoji">{{ deco.emoji }}</span>
+            <img class="item-icon" :src="deco.icon" :alt="deco.name" />
             <span class="item-name">{{ deco.name }}</span>
             <span class="item-price">🪙 {{ deco.price }}</span>
             <div v-if="deco.buff" class="item-effect">{{ getBuffText(deco.buff) }}</div>
@@ -56,7 +56,7 @@
 
         <div v-if="activeTab === 'furniture'" class="items-grid">
           <div v-for="furn in furnitureItems" :key="furn.id" class="item-card">
-            <span class="item-emoji">{{ furn.emoji }}</span>
+            <img class="item-icon" :src="furn.icon" :alt="furn.name" />
             <span class="item-name">{{ furn.name }}</span>
             <span class="item-price">🪙 {{ furn.price }}</span>
             <div v-if="furn.buff || furn.offlineCoinCap" class="item-effect">
@@ -76,7 +76,7 @@
 
         <div v-if="activeTab === 'gear'" class="items-grid">
           <div v-for="gear in gearItems" :key="gear.id" class="item-card">
-            <span class="item-emoji">{{ gear.emoji }}</span>
+            <img class="item-icon" :src="gear.icon" :alt="gear.name" />
             <span class="item-name">{{ gear.name }}</span>
             <span class="item-price">🪙 {{ gear.price }}</span>
             <div class="item-effect">🔓 {{ gear.unlocks }}</div>
@@ -101,6 +101,7 @@ import { ref, computed } from 'vue'
 import { foods } from '../data/foods'
 import { decorations } from '../data/decorations'
 import { furniture } from '../data/furniture'
+import { gearIcons } from '../data/icons'
 import type { BuffEffect } from '../data/decorations'
 import type { Furniture } from '../data/furniture'
 
@@ -135,11 +136,11 @@ const tabs = [
 const furnitureItems = furniture
 
 const gearItems = computed(() => [
-  { id: 'tent', emoji: '⛺', name: '帐篷', price: 100, unlocks: '森林', owned: props.hasTent },
-  { id: 'scarf', emoji: '🧣', name: '围巾', price: 100, unlocks: '雪山', owned: props.hasScarf },
-  { id: 'treasure_map', emoji: '🗺️', name: '藏宝图', price: 150, unlocks: '废弃矿洞', owned: props.hasTreasureMap },
-  { id: 'boat_ticket', emoji: '🎫', name: '船票', price: 180, unlocks: '神秘海岛', owned: props.hasBoatTicket },
-  { id: 'telescope', emoji: '🔭', name: '望远镜', price: 200, unlocks: '星空天文台', owned: props.hasTelescope },
+  { id: 'tent', emoji: '⛺', icon: gearIcons.tent, name: '帐篷', price: 100, unlocks: '森林', owned: props.hasTent },
+  { id: 'scarf', emoji: '🧣', icon: gearIcons.scarf, name: '围巾', price: 100, unlocks: '雪山', owned: props.hasScarf },
+  { id: 'treasure_map', emoji: '🗺️', icon: gearIcons.treasure_map, name: '藏宝图', price: 150, unlocks: '废弃矿洞', owned: props.hasTreasureMap },
+  { id: 'boat_ticket', emoji: '🎫', icon: gearIcons.boat_ticket, name: '船票', price: 180, unlocks: '神秘海岛', owned: props.hasBoatTicket },
+  { id: 'telescope', emoji: '🔭', icon: gearIcons.telescope, name: '望远镜', price: 200, unlocks: '星空天文台', owned: props.hasTelescope },
 ])
 
 function getBuffText(buff: BuffEffect): string {
@@ -270,8 +271,10 @@ function getFurnitureBuffText(furn: Furniture): string {
   box-shadow: 0 1px 4px rgba(92, 64, 51, 0.1);
 }
 
-.item-emoji {
-  font-size: 28px;
+.item-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .item-name {

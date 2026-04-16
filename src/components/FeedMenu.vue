@@ -13,7 +13,7 @@
             class="food-item"
             @click="emit('feed', item.id)"
           >
-            <span class="food-emoji">{{ item.emoji }}</span>
+            <img class="food-icon" :src="item.icon" :alt="item.name" />
             <span class="food-name">{{ item.name }}</span>
             <span class="food-count">×{{ item.quantity }}</span>
           </div>
@@ -46,6 +46,7 @@ const foodItems = computed(() => {
         id: f.id,
         name: details?.name ?? f.id,
         emoji: details?.emoji ?? '🍽️',
+        icon: details?.icon ?? '',
         quantity: f.quantity,
       }
     })
@@ -113,8 +114,10 @@ const foodItems = computed(() => {
   background: rgba(242, 166, 90, 0.15);
 }
 
-.food-emoji {
-  font-size: 22px;
+.food-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .food-name {

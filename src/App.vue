@@ -13,24 +13,24 @@
       />
 
       <div class="decoration-layer">
-        <span
+        <img
           v-for="deco in visibleDecorations"
           :key="deco.id"
-          class="decoration-emoji"
+          class="decoration-img"
+          :src="deco.icon"
+          :alt="deco.id"
           :style="deco.style"
-        >
-          {{ deco.emoji }}
-        </span>
+        />
       </div>
 
-      <span
+      <img
         v-for="furn in visibleFurniture"
         :key="furn.id"
-        class="furniture-emoji"
+        class="furniture-img"
+        :src="furn.icon"
+        :alt="furn.id"
         :style="furn.style"
-      >
-        {{ furn.emoji }}
-      </span>
+      />
 
       <HamsterSprite
         :state="displayState"
@@ -247,11 +247,11 @@ const hamsterScaleStyle = computed(() => {
 
 // --- Visible decorations ---
 const decoPositionStyles: Record<string, Record<string, string>> = {
-  head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', fontSize: '16px', pointerEvents: 'none', zIndex: '10' },
-  face: { position: 'absolute', top: '35px', left: '50%', transform: 'translateX(-50%)', fontSize: '14px', pointerEvents: 'none', zIndex: '10' },
-  ear: { position: 'absolute', top: '8px', right: '18px', fontSize: '12px', pointerEvents: 'none', zIndex: '10' },
-  neck: { position: 'absolute', top: '55px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', pointerEvents: 'none', zIndex: '10' },
-  back: { position: 'absolute', top: '40px', right: '10px', fontSize: '14px', pointerEvents: 'none', zIndex: '10' },
+  head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '24px', height: '24px', pointerEvents: 'none', zIndex: '10' },
+  face: { position: 'absolute', top: '35px', left: '50%', transform: 'translateX(-50%)', width: '20px', height: '20px', pointerEvents: 'none', zIndex: '10' },
+  ear: { position: 'absolute', top: '8px', right: '18px', width: '18px', height: '18px', pointerEvents: 'none', zIndex: '10' },
+  neck: { position: 'absolute', top: '55px', left: '50%', transform: 'translateX(-50%)', width: '18px', height: '18px', pointerEvents: 'none', zIndex: '10' },
+  back: { position: 'absolute', top: '40px', right: '10px', width: '20px', height: '20px', pointerEvents: 'none', zIndex: '10' },
 }
 
 const visibleDecorations = computed(() => {
@@ -260,6 +260,7 @@ const visibleDecorations = computed(() => {
     return {
       id,
       emoji: deco?.emoji ?? '?',
+      icon: deco?.icon ?? '',
       style: decoPositionStyles[deco?.slot ?? 'head_top'] ?? {},
     }
   })
@@ -267,11 +268,11 @@ const visibleDecorations = computed(() => {
 
 // --- Visible furniture ---
 const furnPositionStyles: Record<string, Record<string, string>> = {
-  right: { position: 'absolute', right: '-30px', bottom: '0', fontSize: '22px', pointerEvents: 'none' },
-  left: { position: 'absolute', left: '-30px', bottom: '0', fontSize: '22px', pointerEvents: 'none' },
-  upper_right: { position: 'absolute', right: '-25px', top: '-10px', fontSize: '20px', pointerEvents: 'none' },
-  lower_left: { position: 'absolute', left: '-25px', bottom: '-5px', fontSize: '18px', pointerEvents: 'none' },
-  lower_right: { position: 'absolute', right: '-25px', bottom: '-5px', fontSize: '20px', pointerEvents: 'none' },
+  right: { position: 'absolute', right: '-30px', bottom: '0', width: '32px', height: '32px', pointerEvents: 'none' },
+  left: { position: 'absolute', left: '-30px', bottom: '0', width: '32px', height: '32px', pointerEvents: 'none' },
+  upper_right: { position: 'absolute', right: '-25px', top: '-10px', width: '28px', height: '28px', pointerEvents: 'none' },
+  lower_left: { position: 'absolute', left: '-25px', bottom: '-5px', width: '26px', height: '26px', pointerEvents: 'none' },
+  lower_right: { position: 'absolute', right: '-25px', bottom: '-5px', width: '28px', height: '28px', pointerEvents: 'none' },
 }
 
 const visibleFurniture = computed(() => {
@@ -280,6 +281,7 @@ const visibleFurniture = computed(() => {
     return {
       id,
       emoji: furn?.emoji ?? '?',
+      icon: furn?.icon ?? '',
       style: furnPositionStyles[furn?.position ?? 'right'] ?? {},
     }
   })
@@ -590,13 +592,15 @@ onUnmounted(() => {
   z-index: 10;
 }
 
-.decoration-emoji {
+.decoration-img {
   position: absolute;
   pointer-events: none;
+  object-fit: contain;
 }
 
-.furniture-emoji {
+.furniture-img {
   position: absolute;
   pointer-events: none;
+  object-fit: contain;
 }
 </style>

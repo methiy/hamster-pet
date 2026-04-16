@@ -17,7 +17,7 @@
             :class="{ equipped: item.equipped }"
             @click="emit('toggleEquip', item.id)"
           >
-            <span class="item-emoji">{{ item.emoji }}</span>
+            <img class="item-icon" :src="item.icon" :alt="item.name" />
             <span class="item-name">{{ item.name }}</span>
             <span class="item-slot">{{ slotLabels[item.slot] }}</span>
             <span v-if="item.equipped" class="equip-badge">穿戴中</span>
@@ -58,6 +58,7 @@ const ownedItems = computed(() => {
       id,
       name: deco?.name ?? id,
       emoji: deco?.emoji ?? '❓',
+      icon: deco?.icon ?? '',
       slot: deco?.slot ?? ('head_top' as DecorationSlot),
       equipped: props.equippedDecorations.includes(id),
     }
@@ -156,8 +157,10 @@ const ownedItems = computed(() => {
   background: rgba(242, 166, 90, 0.08);
 }
 
-.item-emoji {
-  font-size: 28px;
+.item-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .item-name {

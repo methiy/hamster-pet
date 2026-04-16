@@ -13,20 +13,23 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { PixelRenderer } from '../sprites/renderer'
-import { decodeFrame } from '../sprites/types'
-import { idleAnimation } from '../sprites/frames/idle'
-import { eatingAnimation } from '../sprites/frames/eating'
-import { sleepingAnimation } from '../sprites/frames/sleeping'
-import { runningAnimation } from '../sprites/frames/running'
-import { happyAnimation } from '../sprites/frames/happy'
-import { hidingAnimation } from '../sprites/frames/hiding'
-import { adventureOutAnimation } from '../sprites/frames/adventure-out'
-import { adventureBackAnimation } from '../sprites/frames/adventure-back'
-import type { AnimationDef, PixelFrame } from '../sprites/types'
+import { ImageRenderer } from '../sprites/image-renderer'
+import type { ImageAnimationDef } from '../sprites/image-frames'
+import {
+  idleAnimation,
+  eatingAnimation,
+  sleepingAnimation,
+  runningAnimation,
+  happyAnimation,
+  hidingAnimation,
+  adventureOutAnimation,
+  adventureBackAnimation,
+} from '../sprites/image-frames'
 import type { BodyRegion } from '../data/hamsterPhrases'
 
 export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
+
+const CANVAS_SIZE = 128
 
 const props = defineProps<{
   state: SpriteState
@@ -41,15 +44,30 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const animClass = ref('')
 
-let renderer: PixelRenderer | null = null
+let renderer: ImageRenderer | null = null
 let animationId: number | null = null
 let lastFrameTime = 0
 let currentFrameIndex = 0
-let decodedFrames: PixelFrame[] = []
-let currentAnimation: AnimationDef = idleAnimation
+let loadedImages: HTMLImageElement[] = []
+let currentAnimation: ImageAnimationDef = idleAnimation
 
-/** Map state names to their AnimationDef */
-function getAnimation(state: SpriteState): AnimationDef {
+/** Preload all frame images for an animation */
+function preloadImages(urls: string[]): Promise<HTMLImageElement[]> {
+  return Promise.all(
+    urls.map(
+      (url) =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => resolve(img)
+          img.onerror = reject
+          img.src = url
+        })
+    )
+  )
+}
+
+/** Map state names to their ImageAnimationDef */
+function getAnimation(state: SpriteState): ImageAnimationDef {
   switch (state) {
     case 'idle': return idleAnimation
     case 'eating': return eatingAnimation
@@ -62,20 +80,20 @@ function getAnimation(state: SpriteState): AnimationDef {
   }
 }
 
-function startAnimation(anim: AnimationDef): void {
+async function startAnimation(anim: ImageAnimationDef): Promise<void> {
   currentAnimation = anim
   currentFrameIndex = 0
   lastFrameTime = 0
-  decodedFrames = anim.frames.map(decodeFrame)
+  loadedImages = await preloadImages(anim.frames)
 
   // Draw first frame immediately
-  if (renderer && decodedFrames.length > 0) {
-    renderer.drawFrame(decodedFrames[0])
+  if (renderer && loadedImages.length > 0) {
+    renderer.drawFrame(loadedImages[0])
   }
 }
 
 function tick(timestamp: number): void {
-  if (!renderer || decodedFrames.length === 0) {
+  if (!renderer || loadedImages.length === 0) {
     animationId = requestAnimationFrame(tick)
     return
   }
@@ -91,23 +109,24 @@ function tick(timestamp: number): void {
     lastFrameTime = timestamp - (delta % frameDuration)
 
     if (currentAnimation.loop) {
-      currentFrameIndex = (currentFrameIndex + 1) % decodedFrames.length
+      currentFrameIndex = (currentFrameIndex + 1) % loadedImages.length
     } else {
-      currentFrameIndex = Math.min(currentFrameIndex + 1, decodedFrames.length - 1)
+      currentFrameIndex = Math.min(currentFrameIndex + 1, loadedImages.length - 1)
     }
 
-    renderer.drawFrame(decodedFrames[currentFrameIndex])
+    renderer.drawFrame(loadedImages[currentFrameIndex])
   }
 
   animationId = requestAnimationFrame(tick)
 }
 
 // ---- Hit detection ----
+// Coordinates now map to 128×128 canvas instead of 48×48
 function getPixelCoords(e: MouseEvent): { x: number; y: number } | null {
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  const x = Math.floor(((e.clientX - rect.left) / rect.width) * 48)
-  const y = Math.floor(((e.clientY - rect.top) / rect.height) * 48)
-  if (x < 0 || x >= 48 || y < 0 || y >= 48) return null
+  const x = Math.floor(((e.clientX - rect.left) / rect.width) * CANVAS_SIZE)
+  const y = Math.floor(((e.clientY - rect.top) / rect.height) * CANVAS_SIZE)
+  if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) return null
   return { x, y }
 }
 
@@ -116,19 +135,17 @@ function isHamsterPixel(x: number, y: number): boolean {
   return renderer.getPixelAlpha(x, y) > 0
 }
 
+// Region detection scaled from 48 → 128 (factor ≈ 2.667)
 function detectRegion(x: number, y: number): BodyRegion {
-  if (y <= 10) return 'ear'
-  if (y <= 24) return 'head'
-  if (y <= 36 && x >= 14 && x <= 34) return 'belly'
-  if (y >= 37) return 'paw'
-  if (x <= 8 || x >= 40) return 'tail'
+  if (y <= 27) return 'ear'        // was 10 @ 48px → 27 @ 128px
+  if (y <= 64) return 'head'       // was 24 → 64
+  if (y <= 96 && x >= 37 && x <= 91) return 'belly' // was 36, 14-34 → 96, 37-91
+  if (y >= 99) return 'paw'        // was 37 → 99
+  if (x <= 21 || x >= 107) return 'tail'  // was 8, 40 → 21, 107
   return 'body'
 }
 
 function onMouseDown(e: MouseEvent) {
-  // Stop mousedown from bubbling to app-container when clicking hamster pixels.
-  // This prevents Tauri's startDragging() from stealing the mouse,
-  // allowing the subsequent click event to fire normally.
   const coords = getPixelCoords(e)
   if (coords && isHamsterPixel(coords.x, coords.y)) {
     e.stopPropagation()
@@ -138,16 +155,13 @@ function onMouseDown(e: MouseEvent) {
 function onClick(e: MouseEvent) {
   const coords = getPixelCoords(e)
   if (!coords || !isHamsterPixel(coords.x, coords.y)) {
-    // Clicked transparent area — let it propagate for window drag
     emit('miss-click', e)
     return
   }
-  // Hit the hamster — stop propagation so window drag doesn't trigger
   e.stopPropagation()
   const region = detectRegion(coords.x, coords.y)
   emit('region-click', region)
 
-  // CSS micro-animation
   const reaction = region === 'belly' || region === 'paw' || region === 'body' ? 'bounce' : 'shake'
   animClass.value = reaction
   setTimeout(() => { animClass.value = '' }, 400)
@@ -174,7 +188,7 @@ watch(() => props.state, (newState) => {
 
 onMounted(() => {
   if (canvasRef.value) {
-    renderer = new PixelRenderer(canvasRef.value)
+    renderer = new ImageRenderer(canvasRef.value)
     startAnimation(getAnimation(props.state))
     animationId = requestAnimationFrame(tick)
   }
