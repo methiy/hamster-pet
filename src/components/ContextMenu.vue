@@ -6,6 +6,7 @@
         <div class="menu-item" @click="emit('shop')">🏪 商店</div>
         <div class="menu-item" @click="emit('postcard')">📮 明信片</div>
         <div class="menu-item" @click="emit('souvenir')">🎁 纪念品</div>
+        <div class="menu-item" @click="emit('wardrobe')">👗 衣柜</div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="emit('settings')">⚙️ 设置</div>
         <div class="menu-item menu-item-danger" @click="emit('quit')">❌ 退出</div>
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   shop: []
   postcard: []
   souvenir: []
+  wardrobe: []
   settings: []
   quit: []
   close: []

@@ -28,6 +28,7 @@
       @shop="onShop"
       @postcard="onPostcard"
       @souvenir="onSouvenir"
+      @wardrobe="onWardrobe"
       @settings="onSettings"
       @quit="onQuit"
       @close="closeMenu"
@@ -47,10 +48,16 @@
       :coins="coins"
       :has-tent="hasTent"
       :has-scarf="hasScarf"
+      :has-treasure-map="hasTreasureMap"
+      :has-boat-ticket="hasBoatTicket"
+      :has-telescope="hasTelescope"
+      :owned-decorations="ownedDecorations"
+      :owned-furniture="ownedFurniture"
       @close="showShop = false"
       @buy-food="onBuyFood"
-      @buy-tent="onBuyTent"
-      @buy-scarf="onBuyScarf"
+      @buy-decoration="onBuyDecoration"
+      @buy-furniture="onBuyFurnitureItem"
+      @buy-gear="onBuyGear"
     />
 
     <FeedMenu
@@ -74,7 +81,19 @@
 
     <SettingsPanel
       v-if="showSettings"
+      :always-on-top="alwaysOnTop"
+      :size="appSize"
       @close="showSettings = false"
+      @update:always-on-top="alwaysOnTop = $event"
+      @update:size="appSize = $event"
+    />
+
+    <WardrobePanel
+      v-if="showWardrobe"
+      :owned-decorations="ownedDecorations"
+      :equipped-decorations="equippedDecorations"
+      @close="showWardrobe = false"
+      @toggle-equip="toggleEquipDecoration"
     />
 
     <ToastNotification />
@@ -94,6 +113,7 @@ import PostcardGallery from './components/PostcardGallery.vue'
 import SouvenirShelf from './components/SouvenirShelf.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastNotification from './components/ToastNotification.vue'
+import WardrobePanel from './components/WardrobePanel.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -102,7 +122,7 @@ import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrase
 import type { BodyRegion } from './data/hamsterPhrases'
 
 const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
-const { coins, ownedFoods, buyFood, useFood, startCoinTimer, stopCoinTimer } = useInventory()
+const { coins, ownedFoods, ownedDecorations, equippedDecorations, ownedFurniture, buyFood, useFood, buyDecoration, toggleEquipDecoration, buyFurniture, startCoinTimer, stopCoinTimer } = useInventory()
 const {
   isOnAdventure,
   adventureLocation,
@@ -111,6 +131,9 @@ const {
   collectedSouvenirs,
   hasTent,
   hasScarf,
+  hasTreasureMap,
+  hasBoatTicket,
+  hasTelescope,
   startAdventure,
   checkAdventureReturn,
   getAdventureData,
@@ -133,6 +156,11 @@ const showFeed = ref(false)
 const showPostcards = ref(false)
 const showSouvenirs = ref(false)
 const showSettings = ref(false)
+const showWardrobe = ref(false)
+
+// Settings state
+const alwaysOnTop = ref(false)
+const appSize = ref('medium')
 
 // Speech bubble
 const speechText = ref('')
@@ -143,7 +171,7 @@ let lastHoverSpeechTime = 0
 
 // Any popup open?
 const anyPopupOpen = computed(() =>
-  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value || showSettings.value
+  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value || showSettings.value || showWardrobe.value
 )
 
 // Click debounce: distinguish single click from double click
@@ -250,18 +278,26 @@ function onBuyFood(foodId: string) {
   buyFood(foodId)
 }
 
-function onBuyTent() {
-  if (coins.value >= 100) {
-    coins.value -= 100
-    hasTent.value = true
-  }
+function onBuyDecoration(decoId: string) {
+  buyDecoration(decoId)
 }
 
-function onBuyScarf() {
-  if (coins.value >= 100) {
-    coins.value -= 100
-    hasScarf.value = true
+function onBuyFurnitureItem(furnId: string) {
+  buyFurniture(furnId)
+}
+
+function onBuyGear(gearId: string) {
+  const prices: Record<string, number> = {
+    tent: 100, scarf: 100, treasure_map: 150, boat_ticket: 180, telescope: 200
   }
+  const price = prices[gearId]
+  if (!price || coins.value < price) return
+  coins.value -= price
+  if (gearId === 'tent') hasTent.value = true
+  else if (gearId === 'scarf') hasScarf.value = true
+  else if (gearId === 'treasure_map') hasTreasureMap.value = true
+  else if (gearId === 'boat_ticket') hasBoatTicket.value = true
+  else if (gearId === 'telescope') hasTelescope.value = true
 }
 
 function onPostcard() {
@@ -272,6 +308,11 @@ function onPostcard() {
 function onSouvenir() {
   closeMenu()
   showSouvenirs.value = true
+}
+
+function onWardrobe() {
+  closeMenu()
+  showWardrobe.value = true
 }
 
 function onSettings() {

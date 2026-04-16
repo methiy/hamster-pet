@@ -6,47 +6,85 @@
         <h2 class="shop-title">🏪 商店</h2>
         <div class="coins-display">🪙 {{ coins }} 金币</div>
 
-        <h3 class="section-title">🍽️ 食物</h3>
-        <div class="items-grid">
+        <div class="tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="tab-btn"
+            :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key"
+          >
+            {{ tab.icon }} {{ tab.label }}
+          </button>
+        </div>
+
+        <div v-if="activeTab === 'food'" class="items-grid">
           <div v-for="food in foods" :key="food.id" class="item-card">
             <span class="item-emoji">{{ food.emoji }}</span>
             <span class="item-name">{{ food.name }}</span>
             <span class="item-price">🪙 {{ food.price }}</span>
+            <div v-if="food.effect" class="item-effect">
+              {{ food.effect === 'happy' ? '😊 开心' : '✨ 超开心' }}
+            </div>
             <button
               class="buy-btn"
               :disabled="coins < food.price"
-              @click="onBuyFood(food.id)"
+              @click="emit('buyFood', food.id)"
             >
               购买
             </button>
           </div>
         </div>
 
-        <h3 class="section-title">🎒 特殊装备</h3>
-        <div class="items-grid">
-          <div class="item-card">
-            <span class="item-emoji">⛺</span>
-            <span class="item-name">帐篷</span>
-            <span class="item-price">🪙 100</span>
+        <div v-if="activeTab === 'decoration'" class="items-grid">
+          <div v-for="deco in decorations" :key="deco.id" class="item-card">
+            <span class="item-emoji">{{ deco.emoji }}</span>
+            <span class="item-name">{{ deco.name }}</span>
+            <span class="item-price">🪙 {{ deco.price }}</span>
+            <div v-if="deco.buff" class="item-effect">{{ getBuffText(deco.buff) }}</div>
             <button
-              v-if="!hasTent"
+              v-if="!ownedDecorations.includes(deco.id)"
               class="buy-btn"
-              :disabled="coins < 100"
-              @click="onBuyTent"
+              :disabled="coins < deco.price"
+              @click="emit('buyDecoration', deco.id)"
             >
               购买
             </button>
             <span v-else class="owned-badge">已拥有 ✓</span>
           </div>
-          <div class="item-card">
-            <span class="item-emoji">🧣</span>
-            <span class="item-name">围巾</span>
-            <span class="item-price">🪙 100</span>
+        </div>
+
+        <div v-if="activeTab === 'furniture'" class="items-grid">
+          <div v-for="furn in furnitureItems" :key="furn.id" class="item-card">
+            <span class="item-emoji">{{ furn.emoji }}</span>
+            <span class="item-name">{{ furn.name }}</span>
+            <span class="item-price">🪙 {{ furn.price }}</span>
+            <div v-if="furn.buff || furn.offlineCoinCap" class="item-effect">
+              {{ getFurnitureBuffText(furn) }}
+            </div>
             <button
-              v-if="!hasScarf"
+              v-if="!ownedFurniture.includes(furn.id)"
               class="buy-btn"
-              :disabled="coins < 100"
-              @click="onBuyScarf"
+              :disabled="coins < furn.price"
+              @click="emit('buyFurniture', furn.id)"
+            >
+              购买
+            </button>
+            <span v-else class="owned-badge">已拥有 ✓</span>
+          </div>
+        </div>
+
+        <div v-if="activeTab === 'gear'" class="items-grid">
+          <div v-for="gear in gearItems" :key="gear.id" class="item-card">
+            <span class="item-emoji">{{ gear.emoji }}</span>
+            <span class="item-name">{{ gear.name }}</span>
+            <span class="item-price">🪙 {{ gear.price }}</span>
+            <div class="item-effect">🔓 {{ gear.unlocks }}</div>
+            <button
+              v-if="!gear.owned"
+              class="buy-btn"
+              :disabled="coins < gear.price"
+              @click="emit('buyGear', gear.id)"
             >
               购买
             </button>
@@ -59,31 +97,64 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { foods } from '../data/foods'
+import { decorations } from '../data/decorations'
+import { furniture } from '../data/furniture'
+import type { BuffEffect } from '../data/decorations'
+import type { Furniture } from '../data/furniture'
 
-defineProps<{
+const props = defineProps<{
   coins: number
   hasTent: boolean
   hasScarf: boolean
+  hasTreasureMap: boolean
+  hasBoatTicket: boolean
+  hasTelescope: boolean
+  ownedDecorations: string[]
+  ownedFurniture: string[]
 }>()
 
 const emit = defineEmits<{
   close: []
   buyFood: [foodId: string]
-  buyTent: []
-  buyScarf: []
+  buyDecoration: [decoId: string]
+  buyFurniture: [furnId: string]
+  buyGear: [gearId: string]
 }>()
 
-function onBuyFood(foodId: string) {
-  emit('buyFood', foodId)
+const activeTab = ref<'food' | 'decoration' | 'furniture' | 'gear'>('food')
+
+const tabs = [
+  { key: 'food' as const, icon: '🍽️', label: '食物' },
+  { key: 'decoration' as const, icon: '👒', label: '装饰' },
+  { key: 'furniture' as const, icon: '🏠', label: '家具' },
+  { key: 'gear' as const, icon: '🎒', label: '装备' },
+]
+
+const furnitureItems = furniture
+
+const gearItems = computed(() => [
+  { id: 'tent', emoji: '⛺', name: '帐篷', price: 100, unlocks: '森林', owned: props.hasTent },
+  { id: 'scarf', emoji: '🧣', name: '围巾', price: 100, unlocks: '雪山', owned: props.hasScarf },
+  { id: 'treasure_map', emoji: '🗺️', name: '藏宝图', price: 150, unlocks: '废弃矿洞', owned: props.hasTreasureMap },
+  { id: 'boat_ticket', emoji: '🎫', name: '船票', price: 180, unlocks: '神秘海岛', owned: props.hasBoatTicket },
+  { id: 'telescope', emoji: '🔭', name: '望远镜', price: 200, unlocks: '星空天文台', owned: props.hasTelescope },
+])
+
+function getBuffText(buff: BuffEffect): string {
+  if (buff.coinMultiplier) return `💰 金币 +${buff.coinMultiplier * 100}%`
+  if (buff.adventureTimeReduction) return `⏱️ 冒险时间 -${buff.adventureTimeReduction * 100}%`
+  if (buff.souvenirChanceBonus) return `🎁 纪念品 +${buff.souvenirChanceBonus * 100}%`
+  if (buff.adventureCoinBonus) return `💰 冒险金币 +${buff.adventureCoinBonus * 100}%`
+  return ''
 }
 
-function onBuyTent() {
-  emit('buyTent')
-}
-
-function onBuyScarf() {
-  emit('buyScarf')
+function getFurnitureBuffText(furn: Furniture): string {
+  if (furn.buff?.coinMultiplier) return `💰 金币 +${furn.buff.coinMultiplier * 100}%`
+  if (furn.buff?.adventureCoinBonus) return `💰 冒险金币 +${furn.buff.adventureCoinBonus * 100}%`
+  if (furn.offlineCoinCap) return `💤 离线上限 ${furn.offlineCoinCap}`
+  return ''
 }
 </script>
 
@@ -105,7 +176,7 @@ function onBuyScarf() {
   border-radius: 14px;
   padding: 16px;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
   max-height: calc(100vh - 20px);
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(92, 64, 51, 0.25);
@@ -147,17 +218,39 @@ function onBuyScarf() {
   font-size: 16px;
   font-weight: 600;
   color: #F2A65A;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding: 6px 12px;
   background: rgba(242, 166, 90, 0.12);
   border-radius: 8px;
 }
 
-.section-title {
-  font-size: 14px;
-  margin: 16px 0 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(92, 64, 51, 0.15);
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 8px;
+  background: white;
+  color: #5C4033;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.tab-btn.active {
+  background: #F2A65A;
+  color: white;
+  border-color: #F2A65A;
+}
+
+.tab-btn:hover:not(.active) {
+  background: rgba(242, 166, 90, 0.1);
 }
 
 .items-grid {
@@ -189,6 +282,12 @@ function onBuyScarf() {
 .item-price {
   font-size: 12px;
   color: #F2A65A;
+}
+
+.item-effect {
+  font-size: 10px;
+  color: #6ab04c;
+  text-align: center;
 }
 
 .buy-btn {

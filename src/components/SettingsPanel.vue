@@ -8,15 +8,15 @@
         <div class="setting-row">
           <span class="setting-label">🔊 音效</span>
           <label class="toggle">
-            <input v-model="soundOn" type="checkbox" />
-            <span class="toggle-slider"></span>
+            <input type="checkbox" :checked="true" disabled />
+            <span class="toggle-slider toggle-disabled"></span>
           </label>
         </div>
 
         <div class="setting-row">
           <span class="setting-label">🎯 置顶显示</span>
           <label class="toggle">
-            <input v-model="alwaysOnTop" type="checkbox" />
+            <input type="checkbox" :checked="alwaysOnTop" @change="emit('update:alwaysOnTop', !alwaysOnTop)" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -29,7 +29,7 @@
               :key="opt.value"
               class="size-btn"
               :class="{ active: size === opt.value }"
-              @click="size = opt.value"
+              @click="emit('update:size', opt.value)"
             >
               {{ opt.label }}
             </button>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="about-section">
-          <div class="about-text">仓鼠宠物 v0.2.0</div>
+          <div class="about-text">仓鼠宠物 v0.3.0</div>
           <div class="about-heart">❤️</div>
         </div>
       </div>
@@ -46,15 +46,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+defineProps<{
+  alwaysOnTop: boolean
+  size: string
+}>()
 
 const emit = defineEmits<{
   close: []
+  'update:alwaysOnTop': [value: boolean]
+  'update:size': [value: string]
 }>()
-
-const soundOn = ref(true)
-const alwaysOnTop = ref(false)
-const size = ref('medium')
 
 const sizeOptions = [
   { value: 'small', label: '小' },
@@ -130,7 +131,6 @@ const sizeOptions = [
   font-weight: 600;
 }
 
-/* Toggle switch */
 .toggle {
   position: relative;
   display: inline-block;
@@ -153,6 +153,11 @@ const sizeOptions = [
   transition: background 0.2s;
 }
 
+.toggle-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .toggle-slider::before {
   content: '';
   position: absolute;
@@ -173,7 +178,6 @@ const sizeOptions = [
   transform: translateX(18px);
 }
 
-/* Size selector */
 .size-selector {
   display: flex;
   gap: 4px;
@@ -200,7 +204,6 @@ const sizeOptions = [
   background: rgba(242, 166, 90, 0.1);
 }
 
-/* About */
 .about-section {
   margin-top: 20px;
   text-align: center;
