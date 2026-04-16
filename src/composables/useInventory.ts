@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
 import { foods, type Food } from '../data/foods'
+import { decorations } from '../data/decorations'
+import { furniture } from '../data/furniture'
 
 export interface OwnedFood {
   id: string
@@ -9,6 +11,9 @@ export interface OwnedFood {
 export function useInventory() {
   const coins = ref(50)
   const ownedFoods = ref<OwnedFood[]>([])
+  const ownedDecorations = ref<string[]>([])
+  const equippedDecorations = ref<string[]>([])
+  const ownedFurniture = ref<string[]>([])
 
   function buyFood(foodId: string): boolean {
     const food = foods.find(f => f.id === foodId)
@@ -43,12 +48,54 @@ export function useInventory() {
     ownedFoods.value.reduce((sum, f) => sum + f.quantity, 0)
   )
 
-  // Auto-increment coins every minute
+  function buyDecoration(decoId: string): boolean {
+    const deco = decorations.find(d => d.id === decoId)
+    if (!deco) return false
+    if (coins.value < deco.price) return false
+    if (ownedDecorations.value.includes(decoId)) return false
+
+    coins.value -= deco.price
+    ownedDecorations.value.push(decoId)
+    return true
+  }
+
+  function toggleEquipDecoration(decoId: string): boolean {
+    if (!ownedDecorations.value.includes(decoId)) return false
+
+    const idx = equippedDecorations.value.indexOf(decoId)
+    if (idx !== -1) {
+      equippedDecorations.value.splice(idx, 1)
+      return true
+    }
+
+    const deco = decorations.find(d => d.id === decoId)
+    if (!deco) return false
+
+    equippedDecorations.value = equippedDecorations.value.filter(eId => {
+      const equipped = decorations.find(d => d.id === eId)
+      return equipped?.slot !== deco.slot
+    })
+    equippedDecorations.value.push(decoId)
+    return true
+  }
+
+  function buyFurniture(furnId: string): boolean {
+    const furn = furniture.find(f => f.id === furnId)
+    if (!furn) return false
+    if (coins.value < furn.price) return false
+    if (ownedFurniture.value.includes(furnId)) return false
+
+    coins.value -= furn.price
+    ownedFurniture.value.push(furnId)
+    return true
+  }
+
   let coinTimer: ReturnType<typeof setInterval> | null = null
 
-  function startCoinTimer() {
+  function startCoinTimer(getCoinMultiplier?: () => number) {
     coinTimer = setInterval(() => {
-      coins.value++
+      const multiplier = getCoinMultiplier?.() ?? 1
+      coins.value += Math.max(1, Math.floor(multiplier))
     }, 60000)
   }
 
@@ -62,10 +109,16 @@ export function useInventory() {
   return {
     coins,
     ownedFoods,
+    ownedDecorations,
+    equippedDecorations,
+    ownedFurniture,
     totalFoodCount,
     buyFood,
     useFood,
     getFoodDetails,
+    buyDecoration,
+    toggleEquipDecoration,
+    buyFurniture,
     startCoinTimer,
     stopCoinTimer,
   }
