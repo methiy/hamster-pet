@@ -5,13 +5,33 @@
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
-    <!-- Hamster sits at bottom center of a larger transparent window -->
-    <div class="hamster-area">
+    <div class="hamster-area" :style="hamsterScaleStyle">
       <SpeechBubble
         :text="speechText"
         :visible="speechVisible"
         @hide="speechVisible = false"
       />
+
+      <div class="decoration-layer">
+        <span
+          v-for="deco in visibleDecorations"
+          :key="deco.id"
+          class="decoration-emoji"
+          :style="deco.style"
+        >
+          {{ deco.emoji }}
+        </span>
+      </div>
+
+      <span
+        v-for="furn in visibleFurniture"
+        :key="furn.id"
+        class="furniture-emoji"
+        :style="furn.style"
+      >
+        {{ furn.emoji }}
+      </span>
+
       <HamsterSprite
         :state="displayState"
         @region-click="onRegionClick"
@@ -34,7 +54,6 @@
       @close="closeMenu"
     />
 
-    <!-- Status note when on adventure -->
     <StatusNote
       v-if="isOnAdventure && adventureLocation && adventureEndTime"
       :location-emoji="adventureLocation.emoji"
@@ -42,7 +61,6 @@
       :end-time="adventureEndTime"
     />
 
-    <!-- Popups -->
     <ShopWindow
       v-if="showShop"
       :coins="coins"
@@ -56,7 +74,7 @@
       @close="showShop = false"
       @buy-food="onBuyFood"
       @buy-decoration="onBuyDecoration"
-      @buy-furniture="onBuyFurnitureItem"
+      @buy-furniture="onBuyFurniture"
       @buy-gear="onBuyGear"
     />
 
@@ -79,21 +97,21 @@
       @close="showSouvenirs = false"
     />
 
-    <SettingsPanel
-      v-if="showSettings"
-      :always-on-top="alwaysOnTop"
-      :size="appSize"
-      @close="showSettings = false"
-      @update:always-on-top="alwaysOnTop = $event"
-      @update:size="appSize = $event"
-    />
-
     <WardrobePanel
       v-if="showWardrobe"
       :owned-decorations="ownedDecorations"
       :equipped-decorations="equippedDecorations"
       @close="showWardrobe = false"
-      @toggle-equip="toggleEquipDecoration"
+      @toggle-equip="onToggleEquip"
+    />
+
+    <SettingsPanel
+      v-if="showSettings"
+      :always-on-top="settings.alwaysOnTop"
+      :size="settings.size"
+      @close="showSettings = false"
+      @update:always-on-top="onToggleAlwaysOnTop"
+      @update:size="onChangeSize"
     />
 
     <ToastNotification />
@@ -117,12 +135,43 @@ import WardrobePanel from './components/WardrobePanel.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
-import { useSave } from './composables/useSave'
+import { useSave, type SettingsData } from './composables/useSave'
+import { useBuff } from './composables/useBuff'
+import { useToast } from './composables/useToast'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
+import { decorations } from './data/decorations'
+import { furniture } from './data/furniture'
+import { foods } from './data/foods'
 
+// --- Settings ---
+const settings = ref<SettingsData>({
+  alwaysOnTop: false,
+  size: 'medium',
+})
+
+// --- Core composables ---
 const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
-const { coins, ownedFoods, ownedDecorations, equippedDecorations, ownedFurniture, buyFood, useFood, buyDecoration, toggleEquipDecoration, buyFurniture, startCoinTimer, stopCoinTimer } = useInventory()
+const { showToast } = useToast()
+
+const {
+  coins,
+  ownedFoods,
+  ownedDecorations,
+  equippedDecorations,
+  ownedFurniture,
+  buyFood,
+  useFood,
+  getFoodDetails,
+  buyDecoration,
+  toggleEquipDecoration,
+  buyFurniture,
+  startCoinTimer,
+  stopCoinTimer,
+} = useInventory()
+
+const { buffValues } = useBuff(equippedDecorations, ownedFurniture)
+
 const {
   isOnAdventure,
   adventureLocation,
@@ -140,17 +189,25 @@ const {
   loadAdventureData,
 } = useAdventure()
 
+const offlineCoinCap = computed(() => buffValues.value.offlineCoinCap)
+
 const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   getAdventureData,
   loadAdventureData,
+}, {
+  ownedDecorations,
+  equippedDecorations,
+  ownedFurniture,
+  settings,
+  offlineCoinCap,
 })
 
-// Context menu
+// --- Context menu ---
 const menuVisible = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
 
-// Popup states
+// --- Popup states ---
 const showShop = ref(false)
 const showFeed = ref(false)
 const showPostcards = ref(false)
@@ -158,46 +215,86 @@ const showSouvenirs = ref(false)
 const showSettings = ref(false)
 const showWardrobe = ref(false)
 
-// Settings state
-const alwaysOnTop = ref(false)
-const appSize = ref('medium')
-
-// Speech bubble
+// --- Speech bubble ---
 const speechText = ref('')
 const speechVisible = ref(false)
 
-// Hover cooldown
+// --- Hover cooldown ---
 let lastHoverSpeechTime = 0
 
-// Any popup open?
+// --- Any popup open ---
 const anyPopupOpen = computed(() =>
-  showShop.value || showFeed.value || showPostcards.value || showSouvenirs.value || showSettings.value || showWardrobe.value
+  showShop.value || showFeed.value || showPostcards.value ||
+  showSouvenirs.value || showSettings.value || showWardrobe.value
 )
 
-// Click debounce: distinguish single click from double click
+// --- Click debounce ---
 let clickTimer: ReturnType<typeof setTimeout> | null = null
 let pendingRegion: BodyRegion | null = null
 
-// Drag: only on left click, and not when menu/popup is open
-function onMouseDown(e: MouseEvent) {
-  // Only left button (button === 0), skip right click
-  if (e.button !== 0) return
-  if (menuVisible.value || anyPopupOpen.value) return
-  try {
-    getCurrentWindow().startDragging()
-  } catch {
-    // Not in Tauri
-  }
+// --- Scale style ---
+const sizeScaleMap: Record<string, number> = {
+  small: 0.67,
+  medium: 1.0,
+  large: 1.33,
 }
 
-/** Called when click misses hamster pixels — start window drag */
+const hamsterScaleStyle = computed(() => {
+  const scale = sizeScaleMap[settings.value.size] ?? 1.0
+  if (scale === 1.0) return {}
+  return { transform: `translateX(-50%) scale(${scale})`, transformOrigin: 'bottom center' }
+})
+
+// --- Visible decorations ---
+const decoPositionStyles: Record<string, Record<string, string>> = {
+  head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', fontSize: '16px', pointerEvents: 'none', zIndex: '10' },
+  face: { position: 'absolute', top: '35px', left: '50%', transform: 'translateX(-50%)', fontSize: '14px', pointerEvents: 'none', zIndex: '10' },
+  ear: { position: 'absolute', top: '8px', right: '18px', fontSize: '12px', pointerEvents: 'none', zIndex: '10' },
+  neck: { position: 'absolute', top: '55px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', pointerEvents: 'none', zIndex: '10' },
+  back: { position: 'absolute', top: '40px', right: '10px', fontSize: '14px', pointerEvents: 'none', zIndex: '10' },
+}
+
+const visibleDecorations = computed(() => {
+  return equippedDecorations.value.map(id => {
+    const deco = decorations.find(d => d.id === id)
+    return {
+      id,
+      emoji: deco?.emoji ?? '?',
+      style: decoPositionStyles[deco?.slot ?? 'head_top'] ?? {},
+    }
+  })
+})
+
+// --- Visible furniture ---
+const furnPositionStyles: Record<string, Record<string, string>> = {
+  right: { position: 'absolute', right: '-30px', bottom: '0', fontSize: '22px', pointerEvents: 'none' },
+  left: { position: 'absolute', left: '-30px', bottom: '0', fontSize: '22px', pointerEvents: 'none' },
+  upper_right: { position: 'absolute', right: '-25px', top: '-10px', fontSize: '20px', pointerEvents: 'none' },
+  lower_left: { position: 'absolute', left: '-25px', bottom: '-5px', fontSize: '18px', pointerEvents: 'none' },
+  lower_right: { position: 'absolute', right: '-25px', bottom: '-5px', fontSize: '20px', pointerEvents: 'none' },
+}
+
+const visibleFurniture = computed(() => {
+  return ownedFurniture.value.map(id => {
+    const furn = furniture.find(f => f.id === id)
+    return {
+      id,
+      emoji: furn?.emoji ?? '?',
+      style: furnPositionStyles[furn?.position ?? 'right'] ?? {},
+    }
+  })
+})
+
+// --- Drag ---
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  if (menuVisible.value || anyPopupOpen.value) return
+  try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
+}
+
 function onMissClick(_e: MouseEvent) {
   if (menuVisible.value || anyPopupOpen.value) return
-  try {
-    getCurrentWindow().startDragging()
-  } catch {
-    // Not in Tauri
-  }
+  try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
 }
 
 function onRightClick(e: MouseEvent) {
@@ -211,7 +308,6 @@ function closeMenu() {
 }
 
 function onDoubleClick() {
-  // Cancel pending single-click
   if (clickTimer) {
     clearTimeout(clickTimer)
     clickTimer = null
@@ -221,7 +317,7 @@ function onDoubleClick() {
   triggerHappy()
 }
 
-// Interaction: region click with 250ms debounce to avoid conflict with dblclick
+// --- Interaction ---
 function onRegionClick(region: BodyRegion) {
   pendingRegion = region
   if (clickTimer) clearTimeout(clickTimer)
@@ -235,28 +331,24 @@ function onRegionClick(region: BodyRegion) {
 }
 
 function handleRegionClick(region: BodyRegion) {
-  // Show speech bubble with random phrase
   const phrases = CLICK_PHRASES[region]
   speechText.value = phrases[Math.floor(Math.random() * phrases.length)]
   speechVisible.value = true
-
-  // Trigger reaction animation
   const reaction = REACTION_MAP[region]
   triggerReaction(reaction.state, reaction.duration)
 }
 
-// Interaction: region hover with cooldown + probability
 function onRegionHover(region: BodyRegion | null) {
   if (!region) return
   const now = Date.now()
-  if (now - lastHoverSpeechTime < 5000) return // 5s cooldown
-  if (Math.random() > 0.3) return // 30% chance
+  if (now - lastHoverSpeechTime < 5000) return
+  if (Math.random() > 0.3) return
   lastHoverSpeechTime = now
   speechText.value = HOVER_PHRASES[Math.floor(Math.random() * HOVER_PHRASES.length)]
   speechVisible.value = true
 }
 
-// Menu actions
+// --- Menu actions ---
 function onFeed() {
   closeMenu()
   showFeed.value = true
@@ -264,7 +356,18 @@ function onFeed() {
 
 function onFeedItem(foodId: string) {
   if (useFood(foodId)) {
+    const food = getFoodDetails(foodId)
     feedHamster()
+
+    if (food?.effect === 'happy') {
+      setTimeout(() => triggerHappy(), 3000)
+      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '好好吃的蛋糕！😊' })
+    } else if (food?.effect === 'special_happy') {
+      setTimeout(() => triggerHappy(), 3000)
+      showToast({ type: 'success', icon: '✨', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '这是什么神仙美食！太幸福了！' })
+    } else {
+      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food?.emoji ?? '🍽️'} ${food?.name ?? foodId}`, message: '看起来很满足~' })
+    }
   }
   showFeed.value = false
 }
@@ -275,29 +378,69 @@ function onShop() {
 }
 
 function onBuyFood(foodId: string) {
-  buyFood(foodId)
+  const food = foods.find(f => f.id === foodId)
+  if (!food) return
+  if (coins.value < food.price) {
+    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${food.price - coins.value} 金币` })
+    return
+  }
+  if (buyFood(foodId)) {
+    showToast({ type: 'success', icon: '🎉', title: `成功购买 ${food.emoji} ${food.name} ×1` })
+  }
 }
 
 function onBuyDecoration(decoId: string) {
-  buyDecoration(decoId)
+  const deco = decorations.find(d => d.id === decoId)
+  if (!deco) return
+  if (coins.value < deco.price) {
+    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${deco.price - coins.value} 金币` })
+    return
+  }
+  if (buyDecoration(decoId)) {
+    const buffText = deco.buff
+      ? (deco.buff.coinMultiplier ? `金币收入 +${deco.buff.coinMultiplier * 100}%` :
+         deco.buff.adventureTimeReduction ? `冒险时间 -${deco.buff.adventureTimeReduction * 100}%` :
+         deco.buff.souvenirChanceBonus ? `纪念品概率 +${deco.buff.souvenirChanceBonus * 100}%` :
+         deco.buff.adventureCoinBonus ? `冒险金币 +${deco.buff.adventureCoinBonus * 100}%` : '')
+      : ''
+    showToast({ type: 'success', icon: '🎉', title: `获得 ${deco.emoji} ${deco.name}！`, message: buffText || undefined })
+  }
 }
 
-function onBuyFurnitureItem(furnId: string) {
-  buyFurniture(furnId)
+function onBuyFurniture(furnId: string) {
+  const furn = furniture.find(f => f.id === furnId)
+  if (!furn) return
+  if (coins.value < furn.price) {
+    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${furn.price - coins.value} 金币` })
+    return
+  }
+  if (buyFurniture(furnId)) {
+    showToast({ type: 'success', icon: '🎉', title: `获得 ${furn.emoji} ${furn.name}！`, message: furn.buff ? '属性加成已生效' : undefined })
+  }
 }
 
 function onBuyGear(gearId: string) {
-  const prices: Record<string, number> = {
-    tent: 100, scarf: 100, treasure_map: 150, boat_ticket: 180, telescope: 200
+  const gearMap: Record<string, { price: number; flag: () => void; emoji: string; name: string; unlocks: string }> = {
+    tent: { price: 100, flag: () => { hasTent.value = true }, emoji: '⛺', name: '帐篷', unlocks: '森林' },
+    scarf: { price: 100, flag: () => { hasScarf.value = true }, emoji: '🧣', name: '围巾', unlocks: '雪山' },
+    treasure_map: { price: 150, flag: () => { hasTreasureMap.value = true }, emoji: '🗺️', name: '藏宝图', unlocks: '废弃矿洞' },
+    boat_ticket: { price: 180, flag: () => { hasBoatTicket.value = true }, emoji: '🎫', name: '船票', unlocks: '神秘海岛' },
+    telescope: { price: 200, flag: () => { hasTelescope.value = true }, emoji: '🔭', name: '望远镜', unlocks: '星空天文台' },
   }
-  const price = prices[gearId]
-  if (!price || coins.value < price) return
-  coins.value -= price
-  if (gearId === 'tent') hasTent.value = true
-  else if (gearId === 'scarf') hasScarf.value = true
-  else if (gearId === 'treasure_map') hasTreasureMap.value = true
-  else if (gearId === 'boat_ticket') hasBoatTicket.value = true
-  else if (gearId === 'telescope') hasTelescope.value = true
+
+  const gear = gearMap[gearId]
+  if (!gear) return
+  if (coins.value < gear.price) {
+    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${gear.price - coins.value} 金币` })
+    return
+  }
+  coins.value -= gear.price
+  gear.flag()
+  showToast({ type: 'success', icon: '🎉', title: `获得 ${gear.emoji} ${gear.name}！`, message: `解锁 ${gear.unlocks}` })
+}
+
+function onToggleEquip(decoId: string) {
+  toggleEquipDecoration(decoId)
 }
 
 function onPostcard() {
@@ -320,37 +463,85 @@ function onSettings() {
   showSettings.value = true
 }
 
-async function onQuit() {
-  closeMenu()
-  save()
-  try {
-    await getCurrentWindow().close()
-  } catch {
-    window.close()
+function onToggleAlwaysOnTop(value: boolean) {
+  settings.value = { ...settings.value, alwaysOnTop: value }
+  try { getCurrentWindow().setAlwaysOnTop(value) } catch { /* Not in Tauri */ }
+}
+
+function onChangeSize(value: string) {
+  settings.value = { ...settings.value, size: value as SettingsData['size'] }
+  const sizeMap: Record<string, [number, number]> = {
+    small: [160, 180],
+    medium: [240, 260],
+    large: [320, 340],
+  }
+  const dims = sizeMap[value]
+  if (dims) {
+    import('@tauri-apps/api/dpi').then(({ LogicalSize }) => {
+      getCurrentWindow().setSize(new LogicalSize(dims[0], dims[1]))
+    }).catch(() => { /* Not in Tauri */ })
   }
 }
 
-// Adventure integration
+async function onQuit() {
+  closeMenu()
+  save()
+  try { await getCurrentWindow().close() } catch { window.close() }
+}
+
+// --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
-    startAdventure()
+    startAdventure({
+      adventureTimeReduction: buffValues.value.adventureTimeReduction,
+      souvenirChanceBonus: buffValues.value.souvenirChanceBonus,
+      adventureCoinBonus: buffValues.value.adventureCoinBonus,
+    })
   }
 })
 
 function pollAdventure() {
   if (!isOnAdventure.value) return
-  const rewards = checkAdventureReturn()
+  const rewards = checkAdventureReturn({
+    adventureTimeReduction: buffValues.value.adventureTimeReduction,
+    souvenirChanceBonus: buffValues.value.souvenirChanceBonus,
+    adventureCoinBonus: buffValues.value.adventureCoinBonus,
+  })
   if (rewards) {
     setState('adventure_back')
     coins.value += rewards.coins
+
+    showToast({ type: 'reward', icon: '✨', title: '冒险归来！', message: `获得 ${rewards.coins} 金币` })
+
+    if (rewards.postcard) {
+      setTimeout(() => {
+        showToast({ type: 'reward', icon: '📮', title: '收到新明信片！' })
+      }, 500)
+    }
+
+    if (rewards.souvenir) {
+      const rarityLabel = rewards.souvenir.rarity === 'legendary' ? '传说' : rewards.souvenir.rarity === 'rare' ? '稀有' : '普通'
+      setTimeout(() => {
+        showToast({ type: 'reward', icon: '🎁', title: '发现纪念品！', message: `${rewards.souvenir!.emoji} ${rewards.souvenir!.name}（${rarityLabel}）` })
+      }, rewards.postcard ? 1000 : 500)
+    }
   }
 }
 
 onMounted(() => {
-  load()
-  startCoinTimer()
+  const { offlineMinutes, offlineCoins } = load()
+
+  if (settings.value.alwaysOnTop) {
+    try { getCurrentWindow().setAlwaysOnTop(true) } catch { /* Not in Tauri */ }
+  }
+
+  if (offlineCoins > 0) {
+    showToast({ type: 'info', icon: 'ℹ️', title: `离开了 ${offlineMinutes} 分钟`, message: `获得 ${offlineCoins} 金币` })
+  }
+
+  startCoinTimer(() => buffValues.value.coinMultiplier)
   startAutoSave()
   adventureTimer = setInterval(pollAdventure, 5000)
   if (isOnAdventure.value) {
@@ -381,7 +572,6 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 
-/* Hamster sits at bottom center of the window */
 .hamster-area {
   position: absolute;
   bottom: 10px;
@@ -389,5 +579,22 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 120px;
   height: 120px;
+}
+
+.decoration-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.decoration-emoji {
+  position: absolute;
+  pointer-events: none;
+}
+
+.furniture-emoji {
+  position: absolute;
+  pointer-events: none;
 }
 </style>
