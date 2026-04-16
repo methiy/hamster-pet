@@ -3,6 +3,7 @@
     <canvas ref="canvasRef" :class="animClass"></canvas>
     <div
       class="hit-layer"
+      @mousedown="onMouseDown"
       @click="onClick"
       @mousemove="onHover"
       @mouseleave="onLeave"
@@ -122,6 +123,16 @@ function detectRegion(x: number, y: number): BodyRegion {
   if (y >= 37) return 'paw'
   if (x <= 8 || x >= 40) return 'tail'
   return 'body'
+}
+
+function onMouseDown(e: MouseEvent) {
+  // Stop mousedown from bubbling to app-container when clicking hamster pixels.
+  // This prevents Tauri's startDragging() from stealing the mouse,
+  // allowing the subsequent click event to fire normally.
+  const coords = getPixelCoords(e)
+  if (coords && isHamsterPixel(coords.x, coords.y)) {
+    e.stopPropagation()
+  }
 }
 
 function onClick(e: MouseEvent) {
