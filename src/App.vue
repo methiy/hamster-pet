@@ -5,7 +5,7 @@
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
-    <div class="hamster-area" :style="hamsterScaleStyle">
+    <div class="hamster-area" :class="{ 'hamster-pushing': isPushing && !isWalking && !isWalkingBack, 'hamster-flipped': isWalkingBack }" :style="hamsterScaleStyle">
       <SpeechBubble
         :text="speechText"
         :visible="speechVisible"
@@ -138,8 +138,12 @@ import { useAdventure } from './composables/useAdventure'
 import { useSave, type SettingsData } from './composables/useSave'
 import { useBuff } from './composables/useBuff'
 import { useToast } from './composables/useToast'
+import { useActivitySensor } from './composables/useActivitySensor'
+import { useActivityReaction } from './composables/useActivityReaction'
+import { usePushAnimation } from './composables/usePushAnimation'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
+import type { ActivityType } from './data/activityPhrases'
 import { decorations } from './data/decorations'
 import { furniture } from './data/furniture'
 import { foods } from './data/foods'
@@ -201,6 +205,33 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   settings,
   offlineCoinCap,
 })
+
+// --- Activity sensing & reaction ---
+const { currentActivity, windowInfo } = useActivitySensor()
+
+function showSpeechText(text: string) {
+  speechText.value = text
+  speechVisible.value = true
+}
+
+const { isPushing, isWalking, isWalkingBack, startPush, cancelAnimation } = usePushAnimation({
+  showSpeech: showSpeechText,
+  triggerReaction,
+  onComplete: () => {
+    resetReacting()
+  },
+})
+
+const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReaction(
+  currentActivity,
+  {
+    showSpeech: showSpeechText,
+    triggerReaction,
+    startPush: (activity: ActivityType) => {
+      startPush(activity, windowInfo.value?.rect ?? null)
+    },
+  },
+)
 
 // --- Context menu ---
 const menuVisible = ref(false)
@@ -547,6 +578,7 @@ onMounted(() => {
 
   startCoinTimer(() => buffValues.value.coinMultiplier)
   startAutoSave()
+  startPeriodicCheck()
   adventureTimer = setInterval(pollAdventure, 5000)
   if (isOnAdventure.value) {
     setState('adventure_out')
@@ -557,6 +589,8 @@ onUnmounted(() => {
   save()
   stopCoinTimer()
   stopAutoSave()
+  stopPeriodicCheck()
+  cancelAnimation()
   if (adventureTimer) clearInterval(adventureTimer)
   if (clickTimer) clearTimeout(clickTimer)
 })
@@ -602,5 +636,20 @@ onUnmounted(() => {
   position: absolute;
   pointer-events: none;
   object-fit: contain;
+}
+
+/* Push animation: hamster leans forward */
+.hamster-pushing {
+  animation: push-lean 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes push-lean {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) rotate(-15deg); }
+}
+
+/* Walking back: flip horizontally */
+.hamster-flipped {
+  transform: translateX(-50%) scaleX(-1);
 }
 </style>
