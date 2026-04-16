@@ -23,16 +23,19 @@ pub struct IdleInfo {
 #[cfg(target_os = "windows")]
 pub mod platform {
     use super::*;
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HWND, RECT, CloseHandle};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, GetWindowRect as WinGetWindowRect,
-        LASTINPUTINFO, GetLastInputInfo,
+        GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+        GetWindowRect as WinGetWindowRect,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetLastInputInfo, LASTINPUTINFO,
     };
     use windows::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+        PROCESS_QUERY_LIMITED_INFORMATION,
     };
-    use windows::Win32::System::ProcessStatus::PROCESS_QUERY_INFORMATION;
-    use windows::Win32::Foundation::RECT;
+    use windows::Win32::System::SystemInformation::GetTickCount;
     use windows::core::PWSTR;
 
     pub fn get_foreground_window_info() -> Option<ActiveWindowInfo> {
@@ -71,7 +74,7 @@ pub mod platform {
 
     unsafe fn get_process_name(pid: u32) -> Option<String> {
         let handle = OpenProcess(
-            PROCESS_QUERY_INFORMATION.0.into(),
+            PROCESS_QUERY_LIMITED_INFORMATION,
             false,
             pid,
         ).ok()?;
@@ -85,7 +88,7 @@ pub mod platform {
             &mut size,
         );
 
-        let _ = windows::Win32::Foundation::CloseHandle(handle);
+        let _ = CloseHandle(handle);
 
         if result.is_ok() {
             let path = String::from_utf16_lossy(&buf[..size as usize]);
@@ -103,7 +106,7 @@ pub mod platform {
                 dwTime: 0,
             };
             if GetLastInputInfo(&mut lii).as_bool() {
-                let tick = windows::Win32::System::SystemInformation::GetTickCount();
+                let tick = GetTickCount();
                 (tick - lii.dwTime) / 1000
             } else {
                 0
