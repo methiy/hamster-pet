@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { LogicalPosition } from '@tauri-apps/api/dpi'
+import { invoke } from '@tauri-apps/api/core'
 import { ACTIVITY_PHRASES, PUSH_PHRASES, type ActivityType } from '../data/activityPhrases'
 import type { HamsterState } from './useHamster'
 
@@ -17,15 +18,23 @@ interface PushCallbacks {
   onComplete: () => void
 }
 
+/** Total push distance in px */
+const PUSH_DISTANCE = 200
+/** Push duration in ms — slow and visible */
+const PUSH_DURATION = 3000
+/** Walk speed: px per ms */
+const WALK_SPEED = 0.15
+
 export function usePushAnimation(callbacks: PushCallbacks) {
   const isPushing = ref(false)
   const isWalking = ref(false)
   const isWalkingBack = ref(false)
 
   let animationFrame: number | null = null
+  let cancelled = false
 
-  /** Smoothly move hamster window from current position to target */
-  function animateMove(
+  /** Smoothly move hamster window between two positions */
+  function animateHamsterMove(
     startX: number,
     startY: number,
     endX: number,
@@ -33,14 +42,18 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     durationMs: number,
   ): Promise<void> {
     return new Promise((resolve) => {
+      if (cancelled) { resolve(); return }
       const startTime = performance.now()
       const appWindow = getCurrentWindow()
 
       function step(now: number) {
+        if (cancelled) { resolve(); return }
         const elapsed = now - startTime
         const progress = Math.min(elapsed / durationMs, 1)
-        // Ease-out cubic
-        const eased = 1 - Math.pow(1 - progress, 3)
+        // Ease-in-out quad for smooth movement
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2
 
         const currentX = startX + (endX - startX) * eased
         const currentY = startY + (endY - startY) * eased
@@ -60,8 +73,58 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     })
   }
 
+  /**
+   * The real push: hamster and target window move together.
+   * Hamster pushes from its position, both slide in the same direction.
+   */
+  function animatePushTogether(
+    hamsterX: number,
+    hamsterY: number,
+    targetWinX: number,
+    targetWinY: number,
+    pushDirX: number,  // normalized direction
+    distance: number,
+    durationMs: number,
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      if (cancelled) { resolve(); return }
+      const startTime = performance.now()
+      const appWindow = getCurrentWindow()
+
+      function step(now: number) {
+        if (cancelled) { resolve(); return }
+        const elapsed = now - startTime
+        const progress = Math.min(elapsed / durationMs, 1)
+        // Linear for a steady push feel
+        const moved = distance * progress
+
+        const hx = hamsterX + pushDirX * moved
+        const tx = targetWinX + pushDirX * moved
+
+        // Move hamster
+        appWindow.setPosition(new LogicalPosition(Math.round(hx), Math.round(hamsterY)))
+          .catch(() => {})
+
+        // Move target foreground window via Rust command
+        invoke('move_foreground_window', { x: Math.round(tx), y: Math.round(targetWinY) })
+          .catch(() => {})
+
+        if (progress < 1) {
+          animationFrame = requestAnimationFrame(step)
+        } else {
+          animationFrame = null
+          resolve()
+        }
+      }
+
+      animationFrame = requestAnimationFrame(step)
+    })
+  }
+
   async function startPush(activity: ActivityType, targetRect: WindowRect | null) {
     if (isPushing.value) return
+    cancelled = false
+
     if (!targetRect) {
       // No target window info, just do a simple complaint
       const phrase = ACTIVITY_PHRASES[activity].phrases[
@@ -84,30 +147,55 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const startY = startPos.y
 
       // Target: left edge of the foreground window, vertically centered
-      const targetX = targetRect.left - 130 // Slightly to the left of the target window
-      const targetY = Math.round((targetRect.top + targetRect.bottom) / 2) - 60
+      const approachX = targetRect.left - 140
+      const approachY = Math.round((targetRect.top + targetRect.bottom) / 2) - 60
 
-      // 2. Walk to the target window (1.5 seconds)
+      // Calculate walk distance → duration (slow walk)
+      const dx = approachX - startX
+      const dy = approachY - startY
+      const walkDist = Math.sqrt(dx * dx + dy * dy)
+      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
+
+      // 2. Walk to the target window
       isWalking.value = true
-      callbacks.triggerReaction('running', 5000) // Running animation during walk
-      await animateMove(startX, startY, targetX, targetY, 1500)
+      callbacks.triggerReaction('running', walkDuration + 1000)
+      await animateHamsterMove(startX, startY, approachX, approachY, walkDuration)
+      if (cancelled) return
 
-      // 3. Arrive - show speech bubble with push phrase
+      // 3. Arrive — show push phrase
       isWalking.value = false
       const pushPhrases = PUSH_PHRASES[activity]
       const phrase = pushPhrases.length > 0
         ? pushPhrases[Math.floor(Math.random() * pushPhrases.length)]
         : ACTIVITY_PHRASES[activity].phrases[Math.floor(Math.random() * ACTIVITY_PHRASES[activity].phrases.length)]
       callbacks.showSpeech(phrase)
-      callbacks.triggerReaction('happy', 2500)
+      callbacks.triggerReaction('happy', PUSH_DURATION + 1000)
 
-      // 4. Push animation (2 seconds) - CSS handles the visual
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Small pause before pushing (仓鼠蓄力)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      if (cancelled) return
 
-      // 5. Walk back to original position (1.5 seconds)
+      // 4. Push! Hamster and target window slide together
+      const pushDirX = 1  // push the window to the right
+      await animatePushTogether(
+        approachX, approachY,
+        targetRect.left, targetRect.top,
+        pushDirX,
+        PUSH_DISTANCE,
+        PUSH_DURATION,
+      )
+      if (cancelled) return
+
+      // 5. Walk back to original position
+      const afterPushX = approachX + PUSH_DISTANCE
       isWalkingBack.value = true
       callbacks.triggerReaction('running', 2000)
-      await animateMove(targetX, targetY, startX, startY, 1500)
+
+      const returnDist = Math.sqrt(
+        (startX - afterPushX) ** 2 + (startY - approachY) ** 2,
+      )
+      const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
+      await animateHamsterMove(afterPushX, approachY, startX, startY, returnDuration)
 
       isWalkingBack.value = false
     } catch {
@@ -121,6 +209,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
   }
 
   function cancelAnimation() {
+    cancelled = true
     if (animationFrame !== null) {
       cancelAnimationFrame(animationFrame)
       animationFrame = null

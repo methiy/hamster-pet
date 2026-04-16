@@ -27,6 +27,7 @@ pub mod platform {
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
         GetWindowRect as WinGetWindowRect,
+        SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetLastInputInfo, LASTINPUTINFO,
@@ -69,6 +70,25 @@ pub mod platform {
                     bottom: rect.bottom,
                 },
             })
+        }
+    }
+
+    /// Move the current foreground window to (x, y) position
+    pub fn move_foreground_window(x: i32, y: i32) -> bool {
+        unsafe {
+            let hwnd: HWND = GetForegroundWindow();
+            if hwnd.0.is_null() {
+                return false;
+            }
+            SetWindowPos(
+                hwnd,
+                None,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            ).is_ok()
         }
     }
 
@@ -120,11 +140,14 @@ pub mod platform {
     use super::*;
 
     pub fn get_foreground_window_info() -> Option<ActiveWindowInfo> {
-        // Return mock data for non-Windows platforms (development)
         None
     }
 
     pub fn get_idle_seconds() -> u32 {
         0
+    }
+
+    pub fn move_foreground_window(_x: i32, _y: i32) -> bool {
+        false
     }
 }
