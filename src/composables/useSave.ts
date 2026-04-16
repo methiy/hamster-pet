@@ -1,10 +1,19 @@
 import type { OwnedFood } from './useInventory'
 import type { Ref } from 'vue'
 
+export interface SettingsData {
+  alwaysOnTop: boolean
+  size: 'small' | 'medium' | 'large'
+}
+
 interface SaveData {
   coins: number
   ownedFoods: OwnedFood[]
   lastSave: number
+  settings?: SettingsData
+  ownedDecorations?: string[]
+  equippedDecorations?: string[]
+  ownedFurniture?: string[]
   adventure?: {
     isOnAdventure: boolean
     locationId: string | null
@@ -13,6 +22,9 @@ interface SaveData {
     collectedSouvenirs: string[]
     hasTent: boolean
     hasScarf: boolean
+    hasTreasureMap: boolean
+    hasBoatTicket: boolean
+    hasTelescope: boolean
   }
 }
 
@@ -24,6 +36,13 @@ export function useSave(
   adventureFns?: {
     getAdventureData: () => any
     loadAdventureData: (data: any) => void
+  },
+  extras?: {
+    ownedDecorations: Ref<string[]>
+    equippedDecorations: Ref<string[]>
+    ownedFurniture: Ref<string[]>
+    settings: Ref<SettingsData>
+    offlineCoinCap: Ref<number>
   }
 ) {
   let saveTimer: ReturnType<typeof setInterval> | null = null
@@ -37,6 +56,12 @@ export function useSave(
     if (adventureFns) {
       data.adventure = adventureFns.getAdventureData()
     }
+    if (extras) {
+      data.settings = extras.settings.value
+      data.ownedDecorations = extras.ownedDecorations.value
+      data.equippedDecorations = extras.equippedDecorations.value
+      data.ownedFurniture = extras.ownedFurniture.value
+    }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
     } catch {
@@ -44,19 +69,31 @@ export function useSave(
     }
   }
 
-  function load() {
+  function load(): { offlineMinutes: number; offlineCoins: number } {
+    let offlineMinutes = 0
+    let offlineCoins = 0
     try {
       const raw = localStorage.getItem(SAVE_KEY)
-      if (!raw) return
+      if (!raw) return { offlineMinutes, offlineCoins }
       const data: SaveData = JSON.parse(raw)
 
       coins.value = data.coins ?? 50
       ownedFoods.value = data.ownedFoods ?? []
 
-      // Grant offline coins (1 per minute away)
+      if (extras) {
+        extras.ownedDecorations.value = data.ownedDecorations ?? []
+        extras.equippedDecorations.value = data.equippedDecorations ?? []
+        extras.ownedFurniture.value = data.ownedFurniture ?? []
+        if (data.settings) {
+          extras.settings.value = data.settings
+        }
+      }
+
       if (data.lastSave) {
-        const minutesAway = Math.floor((Date.now() - data.lastSave) / 60000)
-        coins.value += Math.min(minutesAway, 60) // cap at 60 bonus coins
+        offlineMinutes = Math.floor((Date.now() - data.lastSave) / 60000)
+        const cap = extras?.offlineCoinCap.value ?? 60
+        offlineCoins = Math.min(offlineMinutes, cap)
+        coins.value += offlineCoins
       }
 
       if (adventureFns && data.adventure) {
@@ -65,6 +102,7 @@ export function useSave(
     } catch {
       // corrupted save, ignore
     }
+    return { offlineMinutes, offlineCoins }
   }
 
   function startAutoSave() {
