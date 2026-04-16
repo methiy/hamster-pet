@@ -5,7 +5,13 @@ import { souvenirs, type Souvenir } from '../data/souvenirs'
 export interface AdventureState {
   isOnAdventure: boolean
   locationId: string | null
-  endTime: number | null // timestamp
+  endTime: number | null
+}
+
+export interface AdventureBuffs {
+  adventureTimeReduction: number
+  souvenirChanceBonus: number
+  adventureCoinBonus: number
 }
 
 export function useAdventure() {
@@ -15,55 +21,65 @@ export function useAdventure() {
   const collectedPostcards = ref<Set<string>>(new Set())
   const collectedSouvenirs = ref<string[]>([])
 
-  // Special items (boolean flags)
   const hasTent = ref(false)
   const hasScarf = ref(false)
+  const hasTreasureMap = ref(false)
+  const hasBoatTicket = ref(false)
+  const hasTelescope = ref(false)
 
   const availableLocations = computed(() => {
     return locations.filter(loc => {
       if (!loc.unlockCondition) return true
       if (loc.unlockCondition === 'hasTent') return hasTent.value
       if (loc.unlockCondition === 'hasScarf') return hasScarf.value
+      if (loc.unlockCondition === 'hasTreasureMap') return hasTreasureMap.value
+      if (loc.unlockCondition === 'hasBoatTicket') return hasBoatTicket.value
+      if (loc.unlockCondition === 'hasTelescope') return hasTelescope.value
       return false
     })
   })
 
-  function startAdventure() {
+  function startAdventure(buffs?: AdventureBuffs) {
     if (isOnAdventure.value) return null
     if (availableLocations.value.length === 0) return null
 
     const loc = availableLocations.value[Math.floor(Math.random() * availableLocations.value.length)]
     adventureLocation.value = loc
-    // 30-120 seconds for testing
-    const duration = Math.floor(Math.random() * 90 + 30) * 1000
+    let duration = Math.floor(Math.random() * 90 + 30) * 1000
+    if (buffs?.adventureTimeReduction) {
+      duration = Math.floor(duration * (1 - buffs.adventureTimeReduction))
+    }
     adventureEndTime.value = Date.now() + duration
     isOnAdventure.value = true
     return loc
   }
 
-  function checkAdventureReturn(): { postcard: boolean; souvenir: Souvenir | null; coins: number } | null {
+  function checkAdventureReturn(buffs?: AdventureBuffs): { postcard: boolean; souvenir: Souvenir | null; coins: number } | null {
     if (!isOnAdventure.value || !adventureEndTime.value) return null
     if (Date.now() < adventureEndTime.value) return null
 
     const loc = adventureLocation.value!
+    let coinReward = Math.floor(Math.random() * 15) + 5
+    if (buffs?.adventureCoinBonus) {
+      coinReward = Math.floor(coinReward * (1 + buffs.adventureCoinBonus))
+    }
+
     const rewards: { postcard: boolean; souvenir: Souvenir | null; coins: number } = {
       postcard: false,
       souvenir: null,
-      coins: Math.floor(Math.random() * 15) + 5,
+      coins: coinReward,
     }
 
-    // 50% chance to get a new postcard (if not already collected)
     if (!collectedPostcards.value.has(loc.id) && Math.random() < 0.5) {
       collectedPostcards.value.add(loc.id)
       rewards.postcard = true
     }
 
-    // Pick a souvenir from possible ones
-    if (loc.possibleSouvenirs.length > 0 && Math.random() < 0.7) {
+    const souvenirBaseChance = 0.7 + (buffs?.souvenirChanceBonus ?? 0)
+    if (loc.possibleSouvenirs.length > 0 && Math.random() < souvenirBaseChance) {
       const souvenirId = loc.possibleSouvenirs[Math.floor(Math.random() * loc.possibleSouvenirs.length)]
       const souvenirData = souvenirs.find(s => s.id === souvenirId)
       if (souvenirData) {
-        // Rarity check
         let keep = true
         if (souvenirData.rarity === 'rare' && Math.random() > 0.4) keep = false
         if (souvenirData.rarity === 'legendary' && Math.random() > 0.15) keep = false
@@ -74,7 +90,6 @@ export function useAdventure() {
       }
     }
 
-    // Reset adventure state
     isOnAdventure.value = false
     adventureLocation.value = null
     adventureEndTime.value = null
@@ -91,6 +106,9 @@ export function useAdventure() {
       collectedSouvenirs: collectedSouvenirs.value,
       hasTent: hasTent.value,
       hasScarf: hasScarf.value,
+      hasTreasureMap: hasTreasureMap.value,
+      hasBoatTicket: hasBoatTicket.value,
+      hasTelescope: hasTelescope.value,
     }
   }
 
@@ -100,8 +118,10 @@ export function useAdventure() {
     collectedSouvenirs.value = data.collectedSouvenirs ?? []
     hasTent.value = data.hasTent ?? false
     hasScarf.value = data.hasScarf ?? false
+    hasTreasureMap.value = data.hasTreasureMap ?? false
+    hasBoatTicket.value = data.hasBoatTicket ?? false
+    hasTelescope.value = data.hasTelescope ?? false
 
-    // Restore ongoing adventure
     if (data.isOnAdventure && data.endTime) {
       isOnAdventure.value = true
       adventureEndTime.value = data.endTime
@@ -117,6 +137,9 @@ export function useAdventure() {
     collectedSouvenirs,
     hasTent,
     hasScarf,
+    hasTreasureMap,
+    hasBoatTicket,
+    hasTelescope,
     availableLocations,
     startAdventure,
     checkAdventureReturn,
