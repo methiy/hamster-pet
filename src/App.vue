@@ -361,10 +361,10 @@ function onFeedItem(foodId: string) {
 
     if (food?.effect === 'happy') {
       setTimeout(() => triggerHappy(), 3000)
-      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '好好吃的蛋糕！😊' })
+      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '好好吃的蛋糕！🎂' })
     } else if (food?.effect === 'special_happy') {
       setTimeout(() => triggerHappy(), 3000)
-      showToast({ type: 'success', icon: '✨', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '这是什么神仙美食！太幸福了！' })
+      showToast({ type: 'success', icon: '✨', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '这是什么神仙美食！太幸福了！✨' })
     } else {
       showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food?.emoji ?? '🍽️'} ${food?.name ?? foodId}`, message: '看起来很满足~' })
     }
@@ -504,6 +504,7 @@ watch(currentState, (newState) => {
 
 function pollAdventure() {
   if (!isOnAdventure.value) return
+  const currentLocation = adventureLocation.value
   const rewards = checkAdventureReturn({
     adventureTimeReduction: buffValues.value.adventureTimeReduction,
     souvenirChanceBonus: buffValues.value.souvenirChanceBonus,
@@ -516,8 +517,9 @@ function pollAdventure() {
     showToast({ type: 'reward', icon: '✨', title: '冒险归来！', message: `获得 ${rewards.coins} 金币` })
 
     if (rewards.postcard) {
+      const locName = currentLocation?.name ?? ''
       setTimeout(() => {
-        showToast({ type: 'reward', icon: '📮', title: '收到新明信片！' })
+        showToast({ type: 'reward', icon: '📮', title: '收到新明信片！', message: locName ? `${locName} 风景` : undefined })
       }, 500)
     }
 
