@@ -32,11 +32,16 @@ fn move_captured_window(x: i32, y: i32) -> bool {
     activity::platform::move_captured_window(x, y)
 }
 
+#[tauri::command]
+fn send_space_to_window() -> bool {
+    activity::platform::send_space_to_captured_window()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
             Ok(())

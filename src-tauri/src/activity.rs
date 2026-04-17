@@ -35,7 +35,9 @@ pub mod platform {
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetLastInputInfo, LASTINPUTINFO,
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY,
     };
+    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
     use windows::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
         PROCESS_QUERY_LIMITED_INFORMATION,
@@ -155,6 +157,52 @@ pub mod platform {
         }
     }
 
+    /// Send a space key press to the previously captured window (to pause video)
+    pub fn send_space_to_captured_window() -> bool {
+        let raw = CAPTURED_HWND.load(Ordering::SeqCst);
+        if raw == 0 {
+            return false;
+        }
+        unsafe {
+            let hwnd = HWND(raw as *mut _);
+            // Bring the captured window to foreground so it receives input
+            let _ = SetForegroundWindow(hwnd);
+
+            // Small delay to let the window activate
+            std::thread::sleep(std::time::Duration::from_millis(50));
+
+            // Send space key down + key up via SendInput
+            let vk_space = VIRTUAL_KEY(0x20); // VK_SPACE
+            let key_down = INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_space,
+                        wScan: 0,
+                        dwFlags: Default::default(),
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            };
+            let key_up = INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: vk_space,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            };
+            let inputs = [key_down, key_up];
+            let sent = SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+            sent == 2
+        }
+    }
+
     pub fn get_idle_seconds() -> u32 {
         unsafe {
             let mut lii = LASTINPUTINFO {
@@ -192,6 +240,10 @@ pub mod platform {
     }
 
     pub fn move_captured_window(_x: i32, _y: i32) -> bool {
+        false
+    }
+
+    pub fn send_space_to_captured_window() -> bool {
         false
     }
 }

@@ -256,7 +256,7 @@ function showSpeechText(text: string) {
   speechVisible.value = true
 }
 
-const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, cancelAnimation } = usePushAnimation({
+const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVideoPause, cancelAnimation } = usePushAnimation({
   showSpeech: showSpeechText,
   triggerReaction,
   onComplete: () => {
@@ -271,6 +271,9 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
     triggerReaction,
     startPush: (activity: ActivityType) => {
       startPush(activity, windowInfo.value?.rect ?? null)
+    },
+    startVideoPause: () => {
+      startVideoPause(windowInfo.value?.rect ?? null)
     },
   },
 )

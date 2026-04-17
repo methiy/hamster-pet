@@ -140,3 +140,11 @@ export const PUSH_PHRASES: Record<ActivityType, string[]> = {
     '让我推推看~',
   ],
 }
+
+/** Phrases specifically for when the pet pauses a video */
+export const VIDEO_PAUSE_PHRASES: string[] = [
+  '不要看了主人陪陪我~',
+  '视频暂停！看我看我！',
+  '我帮你按了暂停哦~陪我玩嘛',
+  '不许看了！我按暂停了！',
+]

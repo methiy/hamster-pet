@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { LogicalPosition } from '@tauri-apps/api/dpi'
 import { invoke } from '@tauri-apps/api/core'
-import { ACTIVITY_PHRASES, PUSH_PHRASES, type ActivityType } from '../data/activityPhrases'
+import { ACTIVITY_PHRASES, PUSH_PHRASES, VIDEO_PAUSE_PHRASES, type ActivityType } from '../data/activityPhrases'
 import type { HamsterState } from './useHamster'
 
 interface WindowRect {
@@ -279,6 +279,93 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     }
   }
 
+  /**
+   * Video pause sequence: pet walks to the center of the video window,
+   * says a phrase, sends space to pause the video, then walks back.
+   */
+  async function startVideoPause(targetRect: WindowRect | null) {
+    if (isPushing.value) return
+    cancelled = false
+
+    if (!targetRect) {
+      // No target window, just say something
+      const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
+      callbacks.showSpeech(phrase)
+      callbacks.triggerReaction('happy', 2000)
+      setTimeout(() => callbacks.onComplete(), 2500)
+      return
+    }
+
+    isPushing.value = true
+
+    try {
+      const appWindow = getCurrentWindow()
+
+      // Capture the target window HWND
+      await invoke('capture_foreground_hwnd').catch(() => {})
+
+      // 1. Remember current position
+      const startPos = await appWindow.outerPosition()
+      const startX = startPos.x
+      const startY = startPos.y
+
+      // 2. Calculate center of target window
+      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2) - PET_WIN_W / 2
+      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2) - H_BOTTOM_EDGE + 20
+
+      // 3. Walk to center of the video window
+      const dx = targetCenterX - startX
+      const dy = targetCenterY - startY
+      const walkDist = Math.sqrt(dx * dx + dy * dy)
+      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
+
+      isWalking.value = true
+      pushDirection.value = dx > 0 ? 'right' : 'left'
+      callbacks.triggerReaction('running', walkDuration + 1000)
+      await animateHamsterMove(startX, startY, targetCenterX, targetCenterY, walkDuration)
+      if (cancelled) return
+
+      // 4. Arrive — show video pause phrase
+      isWalking.value = false
+      const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
+      callbacks.showSpeech(phrase)
+
+      // 5. Short pause before sending space
+      await new Promise(resolve => setTimeout(resolve, 500))
+      if (cancelled) return
+
+      // 6. Send space key to pause the video
+      await invoke('send_space_to_window').catch(() => {})
+
+      // 7. Happy reaction after pausing
+      callbacks.triggerReaction('happy', 2500)
+
+      // 8. Stay for 2 seconds so user sees the pet
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      if (cancelled) return
+
+      // 9. Walk back to original position
+      isWalkingBack.value = true
+      pushDirection.value = targetCenterX > startX ? 'right' : 'left'
+      callbacks.triggerReaction('running', 2000)
+
+      const returnDist = Math.sqrt(
+        (startX - targetCenterX) ** 2 + (startY - targetCenterY) ** 2,
+      )
+      const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
+      await animateHamsterMove(targetCenterX, targetCenterY, startX, startY, returnDuration)
+
+      isWalkingBack.value = false
+    } catch {
+      // Not in Tauri or animation failed
+    } finally {
+      isPushing.value = false
+      isWalking.value = false
+      isWalkingBack.value = false
+      callbacks.onComplete()
+    }
+  }
+
   function cancelAnimation() {
     cancelled = true
     if (animationFrame !== null) {
@@ -296,6 +383,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     isWalkingBack,
     pushDirection,
     startPush,
+    startVideoPause,
     cancelAnimation,
   }
 }

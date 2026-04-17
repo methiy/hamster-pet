@@ -6,6 +6,7 @@ interface ReactionCallbacks {
   showSpeech: (text: string) => void
   triggerReaction: (state: HamsterState, duration: number) => void
   startPush: (activity: ActivityType) => void
+  startVideoPause: () => void
 }
 
 export function useActivityReaction(
@@ -51,23 +52,30 @@ export function useActivityReaction(
     // Random delay 1-3 seconds for natural feel
     const delay = 1000 + Math.random() * 2000
     delayTimer = setTimeout(() => {
-      // Decide: simple complaint or push window
-      const shouldPush = config.pushChance > 0 && Math.random() < config.pushChance
-
-      if (shouldPush) {
-        // Push window sequence - the push animation will handle speech
-        callbacks.startPush(activity)
-        // isReacting will be reset when push animation completes
+      // For video activity, prefer video pause over push
+      if (activity === 'video' && config.pushChance > 0 && Math.random() < config.pushChance) {
+        // Video pause sequence — run to center, pause video, come back
+        callbacks.startVideoPause()
+        // isReacting will be reset when the animation completes
       } else {
-        // Simple complaint: speech bubble + reaction
-        const phrase = pickPhrase(activity)
-        callbacks.showSpeech(phrase)
-        callbacks.triggerReaction(config.reactionState, config.reactionDuration)
+        // Decide: simple complaint or push window
+        const shouldPush = config.pushChance > 0 && Math.random() < config.pushChance
 
-        // Reset reacting lock after reaction duration
-        setTimeout(() => {
-          isReacting.value = false
-        }, config.reactionDuration + 500)
+        if (shouldPush) {
+          // Push window sequence - the push animation will handle speech
+          callbacks.startPush(activity)
+          // isReacting will be reset when push animation completes
+        } else {
+          // Simple complaint: speech bubble + reaction
+          const phrase = pickPhrase(activity)
+          callbacks.showSpeech(phrase)
+          callbacks.triggerReaction(config.reactionState, config.reactionDuration)
+
+          // Reset reacting lock after reaction duration
+          setTimeout(() => {
+            isReacting.value = false
+          }, config.reactionDuration + 500)
+        }
       }
     }, delay)
   }
