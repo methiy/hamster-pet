@@ -161,7 +161,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { LogicalPosition, LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi'
+import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -324,19 +324,22 @@ watch(needsExpandedWindow, async (expanded) => {
   if (isWorkMode.value) return  // Work mode already has a larger window
   try {
     const win = getCurrentWindow()
+    let scale = 1.0
+    try { scale = await win.scaleFactor() } catch { /* fallback */ }
     const petDims = petSizeMap[settings.value.size] ?? [240, 260]
     if (expanded) {
-      // Get current position so we can offset to keep pet in place
+      // Get current position (physical pixels) so we can offset to keep pet in place
       const pos = await win.outerPosition()
-      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
-      const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
+      // Offsets are in logical pixels, scale to physical
+      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
+      const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
       await win.setSize(new LogicalSize(EXPANDED_WIN_SIZE.w, EXPANDED_WIN_SIZE.h))
-      await win.setPosition(new LogicalPosition(pos.x - offsetX, pos.y - offsetY))
+      await win.setPosition(new PhysicalPosition(pos.x - offsetX, pos.y - offsetY))
     } else {
       const pos = await win.outerPosition()
-      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
-      const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
-      await win.setPosition(new LogicalPosition(pos.x + offsetX, pos.y + offsetY))
+      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
+      const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
+      await win.setPosition(new PhysicalPosition(pos.x + offsetX, pos.y + offsetY))
       await win.setSize(new LogicalSize(petDims[0], petDims[1]))
     }
   } catch { /* Not in Tauri */ }
@@ -537,7 +540,7 @@ async function onGrabMove(screenX: number, screenY: number) {
 
   try {
     await getCurrentWindow().setPosition(
-      new LogicalPosition(grabWindowX + dx, grabWindowY + dy)
+      new PhysicalPosition(grabWindowX + dx, grabWindowY + dy)
     )
   } catch { /* Not in Tauri */ }
 }
