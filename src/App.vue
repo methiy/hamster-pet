@@ -161,7 +161,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi'
+import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -327,19 +327,26 @@ watch(needsExpandedWindow, async (expanded) => {
     let scale = 1.0
     try { scale = await win.scaleFactor() } catch { /* fallback */ }
     const petDims = petSizeMap[settings.value.size] ?? [240, 260]
-    // Offsets are in logical pixels, scale to physical
+    // Offsets in physical pixels
     const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
     const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
+    const pos = await win.outerPosition()
     if (expanded) {
-      const pos = await win.outerPosition()
-      // Move first, then resize — avoids the flash where window is big but not yet repositioned
-      await win.setPosition(new PhysicalPosition(pos.x - offsetX, pos.y - offsetY))
-      await win.setSize(new LogicalSize(EXPANDED_WIN_SIZE.w, EXPANDED_WIN_SIZE.h))
+      // Atomically expand + reposition in one OS call — no flicker
+      await invoke('set_window_bounds', {
+        x: pos.x - offsetX,
+        y: pos.y - offsetY,
+        width: Math.round(EXPANDED_WIN_SIZE.w * scale),
+        height: Math.round(EXPANDED_WIN_SIZE.h * scale),
+      })
     } else {
-      const pos = await win.outerPosition()
-      // Resize first, then move — avoids the flash where window is small but still at expanded position
-      await win.setSize(new LogicalSize(petDims[0], petDims[1]))
-      await win.setPosition(new PhysicalPosition(pos.x + offsetX, pos.y + offsetY))
+      // Atomically shrink + reposition
+      await invoke('set_window_bounds', {
+        x: pos.x + offsetX,
+        y: pos.y + offsetY,
+        width: Math.round(petDims[0] * scale),
+        height: Math.round(petDims[1] * scale),
+      })
     }
   } catch { /* Not in Tauri */ }
 })

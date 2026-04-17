@@ -43,12 +43,43 @@ fn get_cursor_position() -> Option<CursorPosition> {
     activity::platform::get_cursor_position()
 }
 
+/// Atomically set window position and size in one OS call to avoid flicker.
+/// All values are in physical pixels.
+#[tauri::command]
+fn set_window_bounds(window: tauri::Window, x: i32, y: i32, width: i32, height: i32) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOZORDER, SWP_NOACTIVATE};
+        use windows::Win32::Foundation::HWND;
+
+        let hwnd = match window.hwnd() {
+            Ok(h) => HWND(h.0),
+            Err(_) => return false,
+        };
+
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                HWND::default(),
+                x, y, width, height,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            ).is_ok()
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, x, y, width, height);
+        false
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
