@@ -87,6 +87,7 @@
       @souvenir="onSouvenir"
       @wardrobe="onWardrobe"
       @reminder="onReminder"
+      @status="onStatus"
       @typing="onTypingMode"
       @settings="onSettings"
       @quit="onQuit"
@@ -152,6 +153,13 @@
       @remove="onRemoveReminder"
     />
 
+    <StatusPanel
+      v-if="showStatus"
+      :status="status"
+      :mood-level="moodLevel"
+      @close="showStatus = false"
+    />
+
     <SettingsPanel
       v-if="showSettings"
       :always-on-top="settings.alwaysOnTop"
@@ -188,6 +196,7 @@ import ToastNotification from './components/ToastNotification.vue'
 import WardrobePanel from './components/WardrobePanel.vue'
 import TypingGame from './components/TypingGame.vue'
 import ReminderPanel from './components/ReminderPanel.vue'
+import StatusPanel from './components/StatusPanel.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -200,6 +209,7 @@ import { usePushAnimation } from './composables/usePushAnimation'
 import { useAppMode } from './composables/useAppMode'
 import { useReminder } from './composables/useReminder'
 import { useAudio } from './composables/useAudio'
+import { useStatus } from './composables/useStatus'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -239,6 +249,19 @@ const {
   getReminders,
   loadReminders,
 } = useReminder()
+
+const {
+  status,
+  moodLevel,
+  recordClick,
+  recordFeed,
+  recordAdventure,
+  recordCoinsEarned,
+  startDecay,
+  stopDecay,
+  getStatusData,
+  loadStatusData,
+} = useStatus()
 
 const {
   coins,
@@ -289,6 +312,8 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
 }, {
   getReminders,
   loadReminders,
+  getStatusData,
+  loadStatusData,
 })
 
 // --- Activity sensing & reaction ---
@@ -334,6 +359,7 @@ const showSouvenirs = ref(false)
 const showSettings = ref(false)
 const showWardrobe = ref(false)
 const showReminder = ref(false)
+const showStatus = ref(false)
 
 // --- Speech bubble ---
 const speechText = ref('')
@@ -345,7 +371,7 @@ let lastHoverSpeechTime = 0
 // --- Any popup open ---
 const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value ||
-  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value
+  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value || showStatus.value
 )
 
 // --- Expand window when popup/menu is open to avoid clipping ---
@@ -523,6 +549,7 @@ function handleRegionClick(region: BodyRegion) {
   const reaction = REACTION_MAP[region]
   triggerReaction(reaction.state, reaction.duration)
   playSound('click')
+  recordClick()
 }
 
 function onRegionHover(region: BodyRegion | null) {
@@ -692,6 +719,7 @@ function onFeedItem(foodId: string) {
     const food = getFoodDetails(foodId)
     feedHamster()
     playSound('feed')
+    recordFeed()
 
     if (food?.effect === 'happy') {
       setTimeout(() => triggerHappy(), 3000)
@@ -807,6 +835,11 @@ function onRemoveReminder(id: string) {
   removeReminder(id)
 }
 
+function onStatus() {
+  closeMenu()
+  showStatus.value = true
+}
+
 function onTypingMode() {
   closeMenu()
   setMode('work')
@@ -833,6 +866,7 @@ function onTypingWordComplete(coinReward: number) {
   triggerReaction('happy', 1200)
   showToast({ type: 'success', icon: '🪙', title: `+${coinReward} 金币`, message: '打字完成！' })
   playSound('coin')
+  recordCoinsEarned(coinReward)
 }
 
 function onTypingStreak(streak: number, coinReward: number) {
@@ -925,6 +959,8 @@ function pollAdventure() {
   if (rewards) {
     setState('adventure_back')
     coins.value += rewards.coins
+    recordAdventure()
+    recordCoinsEarned(rewards.coins)
 
     showToast({ type: 'reward', icon: '✨', title: '冒险归来！', message: `获得 ${rewards.coins} 金币` })
 
@@ -958,6 +994,7 @@ onMounted(async () => {
   startCoinTimer(() => buffValues.value.coinMultiplier)
   startAutoSave()
   startPeriodicCheck()
+  startDecay()
   initModeListener()
   adventureTimer = setInterval(pollAdventure, 5000)
   reminderTimer = setInterval(() => {
@@ -1018,6 +1055,7 @@ onUnmounted(() => {
   stopCoinTimer()
   stopAutoSave()
   stopPeriodicCheck()
+  stopDecay()
   destroyModeListener()
   cancelAnimation()
   if (adventureTimer) clearInterval(adventureTimer)
