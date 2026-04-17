@@ -7,6 +7,7 @@
         <div class="menu-item" @click="emit('postcard')">📮 明信片</div>
         <div class="menu-item" @click="emit('souvenir')">🎁 纪念品</div>
         <div class="menu-item" @click="emit('wardrobe')">👗 衣柜</div>
+        <div class="menu-item" @click="emit('reminder')">📝 备忘</div>
         <div class="menu-divider"></div>
         <div class="menu-item" @click="emit('typing')">⌨️ 打字模式</div>
         <div class="menu-item" @click="emit('settings')">⚙️ 设置</div>
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   postcard: []
   souvenir: []
   wardrobe: []
+  reminder: []
   typing: []
   settings: []
   quit: []

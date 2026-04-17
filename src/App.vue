@@ -86,6 +86,7 @@
       @postcard="onPostcard"
       @souvenir="onSouvenir"
       @wardrobe="onWardrobe"
+      @reminder="onReminder"
       @typing="onTypingMode"
       @settings="onSettings"
       @quit="onQuit"
@@ -143,6 +144,14 @@
       @toggle-equip="onToggleEquip"
     />
 
+    <ReminderPanel
+      v-if="showReminder"
+      :reminders="reminders"
+      @close="showReminder = false"
+      @add="onAddReminder"
+      @remove="onRemoveReminder"
+    />
+
     <SettingsPanel
       v-if="showSettings"
       :always-on-top="settings.alwaysOnTop"
@@ -174,6 +183,7 @@ import SettingsPanel from './components/SettingsPanel.vue'
 import ToastNotification from './components/ToastNotification.vue'
 import WardrobePanel from './components/WardrobePanel.vue'
 import TypingGame from './components/TypingGame.vue'
+import ReminderPanel from './components/ReminderPanel.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -184,6 +194,7 @@ import { useActivitySensor } from './composables/useActivitySensor'
 import { useActivityReaction } from './composables/useActivityReaction'
 import { usePushAnimation } from './composables/usePushAnimation'
 import { useAppMode } from './composables/useAppMode'
+import { useReminder } from './composables/useReminder'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -203,6 +214,15 @@ const { currentState, displayState, triggerHappy, feedHamster, setState, trigger
 const { showToast } = useToast()
 const { mode, setMode, initModeListener, destroyModeListener } = useAppMode()
 const isWorkMode = computed(() => mode.value === 'work')
+
+const {
+  reminders,
+  addReminder,
+  removeReminder,
+  checkDueReminders,
+  getReminders,
+  loadReminders,
+} = useReminder()
 
 const {
   coins,
@@ -250,6 +270,9 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   ownedFurniture,
   settings,
   offlineCoinCap,
+}, {
+  getReminders,
+  loadReminders,
 })
 
 // --- Activity sensing & reaction ---
@@ -294,6 +317,7 @@ const showPostcards = ref(false)
 const showSouvenirs = ref(false)
 const showSettings = ref(false)
 const showWardrobe = ref(false)
+const showReminder = ref(false)
 
 // --- Speech bubble ---
 const speechText = ref('')
@@ -305,7 +329,7 @@ let lastHoverSpeechTime = 0
 // --- Any popup open ---
 const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value ||
-  showSouvenirs.value || showSettings.value || showWardrobe.value
+  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value
 )
 
 // --- Expand window when popup/menu is open to avoid clipping ---
@@ -747,6 +771,20 @@ function onWardrobe() {
   showWardrobe.value = true
 }
 
+function onReminder() {
+  closeMenu()
+  showReminder.value = true
+}
+
+function onAddReminder(text: string, datetime: number | null) {
+  addReminder(text, datetime)
+  showToast({ type: 'success', icon: '📝', title: '备忘已添加', message: text.slice(0, 30) })
+}
+
+function onRemoveReminder(id: string) {
+  removeReminder(id)
+}
+
 function onTypingMode() {
   closeMenu()
   setMode('work')
@@ -832,6 +870,7 @@ watch(mode, (newMode) => {
 
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
+let reminderTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
 
 watch(currentState, (newState) => {
@@ -890,6 +929,13 @@ onMounted(async () => {
   startPeriodicCheck()
   initModeListener()
   adventureTimer = setInterval(pollAdventure, 5000)
+  reminderTimer = setInterval(() => {
+    const due = checkDueReminders()
+    for (const r of due) {
+      showSpeechText(`📝 备忘提醒：${r.text}`)
+      showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
+    }
+  }, 30000)
   if (isOnAdventure.value) {
     setState('adventure_out')
   }
@@ -942,6 +988,7 @@ onUnmounted(() => {
   destroyModeListener()
   cancelAnimation()
   if (adventureTimer) clearInterval(adventureTimer)
+  if (reminderTimer) clearInterval(reminderTimer)
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
 })

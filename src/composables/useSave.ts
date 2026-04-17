@@ -1,9 +1,13 @@
 import type { OwnedFood } from './useInventory'
+import type { Reminder } from './useReminder'
 import type { Ref } from 'vue'
 
 export interface SettingsData {
   alwaysOnTop: boolean
   size: 'small' | 'medium' | 'large'
+  volume?: number
+  muted?: boolean
+  weatherCity?: string
 }
 
 interface SaveData {
@@ -31,6 +35,22 @@ interface SaveData {
     bestWpm: number
     lastDifficulty: string
   }
+  reminders?: Reminder[]
+  status?: {
+    mood: number
+    fullness: number
+    clicksToday: number
+    feedsToday: number
+    totalCoinsEarned: number
+    adventuresCompleted: number
+    lastDayReset: string
+  }
+  pomodoro?: {
+    totalPomodoros: number
+    totalMinutes: number
+    todayPomodoros: number
+    lastDayReset: string
+  }
 }
 
 const SAVE_KEY = 'hamster-pet-save'
@@ -48,6 +68,14 @@ export function useSave(
     ownedFurniture: Ref<string[]>
     settings: Ref<SettingsData>
     offlineCoinCap: Ref<number>
+  },
+  extraFns?: {
+    getReminders?: () => Reminder[]
+    loadReminders?: (data: Reminder[]) => void
+    getStatusData?: () => any
+    loadStatusData?: (data: any) => void
+    getPomodoroData?: () => any
+    loadPomodoroData?: (data: any) => void
   }
 ) {
   let saveTimer: ReturnType<typeof setInterval> | null = null
@@ -66,6 +94,15 @@ export function useSave(
       data.ownedDecorations = extras.ownedDecorations.value
       data.equippedDecorations = extras.equippedDecorations.value
       data.ownedFurniture = extras.ownedFurniture.value
+    }
+    if (extraFns?.getReminders) {
+      data.reminders = extraFns.getReminders()
+    }
+    if (extraFns?.getStatusData) {
+      data.status = extraFns.getStatusData()
+    }
+    if (extraFns?.getPomodoroData) {
+      data.pomodoro = extraFns.getPomodoroData()
     }
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -103,6 +140,15 @@ export function useSave(
 
       if (adventureFns && data.adventure) {
         adventureFns.loadAdventureData(data.adventure)
+      }
+      if (extraFns?.loadReminders && data.reminders) {
+        extraFns.loadReminders(data.reminders)
+      }
+      if (extraFns?.loadStatusData && data.status) {
+        extraFns.loadStatusData(data.status)
+      }
+      if (extraFns?.loadPomodoroData && data.pomodoro) {
+        extraFns.loadPomodoroData(data.pomodoro)
       }
     } catch {
       // corrupted save, ignore
