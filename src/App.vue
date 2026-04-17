@@ -158,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { LogicalPosition } from '@tauri-apps/api/dpi'
+import { LogicalPosition, LogicalSize } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -300,6 +300,40 @@ const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value ||
   showSouvenirs.value || showSettings.value || showWardrobe.value
 )
+
+// --- Expand window when popup/menu is open to avoid clipping ---
+const petSizeMap: Record<string, [number, number]> = {
+  small: [160, 180],
+  medium: [240, 260],
+  large: [320, 340],
+}
+const EXPANDED_WIN_SIZE = { w: 600, h: 600 }
+
+const needsExpandedWindow = computed(() =>
+  menuVisible.value || anyPopupOpen.value
+)
+
+watch(needsExpandedWindow, async (expanded) => {
+  if (isWorkMode.value) return  // Work mode already has a larger window
+  try {
+    const win = getCurrentWindow()
+    const petDims = petSizeMap[settings.value.size] ?? [240, 260]
+    if (expanded) {
+      // Get current position so we can offset to keep pet in place
+      const pos = await win.outerPosition()
+      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
+      const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
+      await win.setSize(new LogicalSize(EXPANDED_WIN_SIZE.w, EXPANDED_WIN_SIZE.h))
+      await win.setPosition(new LogicalPosition(pos.x - offsetX, pos.y - offsetY))
+    } else {
+      const pos = await win.outerPosition()
+      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
+      const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
+      await win.setPosition(new LogicalPosition(pos.x + offsetX, pos.y + offsetY))
+      await win.setSize(new LogicalSize(petDims[0], petDims[1]))
+    }
+  } catch { /* Not in Tauri */ }
+})
 
 // --- Click debounce ---
 let clickTimer: ReturnType<typeof setTimeout> | null = null
