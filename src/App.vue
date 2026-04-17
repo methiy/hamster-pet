@@ -259,7 +259,7 @@ function showSpeechText(text: string) {
   speechVisible.value = true
 }
 
-const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVideoPause, cancelAnimation } = usePushAnimation({
+const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVideoPause, startSummonWalk, cancelAnimation } = usePushAnimation({
   showSpeech: showSpeechText,
   triggerReaction,
   onComplete: () => {
@@ -814,15 +814,29 @@ onMounted(async () => {
         const win = getCurrentWindow()
         const cursor = await invoke<{ x: number; y: number } | null>('get_cursor_position')
         if (cursor) {
-          await win.setPosition(new LogicalPosition(cursor.x - 125, cursor.y - 150))
+          // Get DPI scale to compute physical pixel offsets for centering pet on cursor
+          const scale = await win.scaleFactor()
+          const offsetX = 125 * scale  // half pet window width (logical 250/2)
+          const offsetY = 150 * scale  // roughly center pet vertically
+          const targetX = cursor.x - offsetX
+          const targetY = cursor.y - offsetY
+
+          await win.show()
+          await win.setFocus()
+
+          // Walk to cursor position with animation
+          speechText.value = pickRandom(SUMMON_PHRASES)
+          speechVisible.value = true
+          await startSummonWalk(targetX, targetY)
+          triggerReaction('happy', 2000)
+        } else {
+          await win.show()
+          await win.setFocus()
+          triggerReaction('happy', 2000)
+          speechText.value = pickRandom(SUMMON_PHRASES)
+          speechVisible.value = true
         }
-        await win.show()
-        await win.setFocus()
       } catch { /* Not in Tauri */ }
-      // Show happy reaction + summon phrase
-      triggerReaction('happy', 2000)
-      speechText.value = pickRandom(SUMMON_PHRASES)
-      speechVisible.value = true
     })
   } catch { /* Not in Tauri */ }
 })

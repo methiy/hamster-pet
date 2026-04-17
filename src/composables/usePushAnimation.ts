@@ -481,6 +481,49 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     }
   }
 
+  /**
+   * Summon walk: pet walks from current position to a target position (physical pixels),
+   * shows a happy reaction and speech on arrival.
+   */
+  async function startSummonWalk(targetPhysX: number, targetPhysY: number) {
+    if (isPushing.value) return
+    cancelled = false
+    isPushing.value = true
+
+    try {
+      const appWindow = getCurrentWindow()
+      const startPos = await appWindow.outerPosition()
+      const startX = startPos.x
+      const startY = startPos.y
+
+      const dx = targetPhysX - startX
+      const dy = targetPhysY - startY
+      const walkDist = Math.sqrt(dx * dx + dy * dy)
+
+      // If already very close, just teleport
+      if (walkDist < 50) {
+        await appWindow.setPosition(new PhysicalPosition(Math.round(targetPhysX), Math.round(targetPhysY)))
+        return
+      }
+
+      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
+
+      isWalking.value = true
+      pushDirection.value = dx > 0 ? 'right' : 'left'
+      callbacks.triggerReaction('running', walkDuration + 500)
+      await animateHamsterMove(startX, startY, targetPhysX, targetPhysY, walkDuration)
+
+      isWalking.value = false
+    } catch {
+      // Not in Tauri or animation failed
+    } finally {
+      isPushing.value = false
+      isWalking.value = false
+      isWalkingBack.value = false
+      callbacks.onComplete()
+    }
+  }
+
   function cancelAnimation() {
     cancelled = true
     if (animationFrame !== null) {
@@ -499,6 +542,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     pushDirection,
     startPush,
     startVideoPause,
+    startSummonWalk,
     cancelAnimation,
   }
 }
