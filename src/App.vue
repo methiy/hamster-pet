@@ -813,16 +813,24 @@ onMounted(async () => {
       try {
         const win = getCurrentWindow()
         const cursor = await invoke<{ x: number; y: number } | null>('get_cursor_position')
+
+        // Cancel any ongoing animation so summon always works
+        if (isPushing.value) {
+          cancelAnimation()
+        }
+
+        await win.show()
+        await win.unminimize()
+        await win.setFocus()
+
         if (cursor) {
           // Get DPI scale to compute physical pixel offsets for centering pet on cursor
-          const scale = await win.scaleFactor()
+          let scale = 1.0
+          try { scale = await win.scaleFactor() } catch { /* fallback to 1.0 */ }
           const offsetX = 125 * scale  // half pet window width (logical 250/2)
           const offsetY = 150 * scale  // roughly center pet vertically
           const targetX = cursor.x - offsetX
           const targetY = cursor.y - offsetY
-
-          await win.show()
-          await win.setFocus()
 
           // Walk to cursor position with animation
           speechText.value = pickRandom(SUMMON_PHRASES)
@@ -830,8 +838,6 @@ onMounted(async () => {
           await startSummonWalk(targetX, targetY)
           triggerReaction('happy', 2000)
         } else {
-          await win.show()
-          await win.setFocus()
           triggerReaction('happy', 2000)
           speechText.value = pickRandom(SUMMON_PHRASES)
           speechVisible.value = true
