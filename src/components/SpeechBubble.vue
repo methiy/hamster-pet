@@ -1,6 +1,6 @@
 <template>
   <Transition name="bubble">
-    <div v-if="visible" class="speech-bubble">
+    <div v-if="visible" class="speech-bubble" :class="{ 'speech-bubble-flipped': isFlipped }">
       {{ text }}
     </div>
   </Transition>
@@ -12,6 +12,7 @@ import { watch } from 'vue'
 const props = defineProps<{
   text: string
   visible: boolean
+  isFlipped?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -64,6 +65,11 @@ watch(() => props.visible, (v) => {
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
   border-top: 6px solid #FFFDE7;
+}
+
+/* Counter-flip when parent hamster-area is flipped via scaleX(-1) */
+.speech-bubble-flipped {
+  transform: translateX(-50%) scaleX(-1);
 }
 
 .bubble-enter-active {

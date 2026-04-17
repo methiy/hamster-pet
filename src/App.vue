@@ -11,6 +11,7 @@
       <SpeechBubble
         :text="speechText"
         :visible="speechVisible"
+        :is-flipped="isFlipped"
         @hide="speechVisible = false"
       />
 
@@ -373,6 +374,12 @@ const pushAnimationClasses = computed(() => {
   }
 })
 
+const isFlipped = computed(() => {
+  const pushing = isPushing.value && !isWalking.value && !isWalkingBack.value
+  const dir = pushDirection.value
+  return isWalkingBack.value || (isWalking.value && dir === 'right') || (pushing && dir === 'left')
+})
+
 // --- Visible decorations ---
 const decoPositionStyles: Record<string, Record<string, string>> = {
   head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '24px', height: '24px', pointerEvents: 'none', zIndex: '10' },
@@ -428,8 +435,13 @@ function onMissClick(_e: MouseEvent) {
 }
 
 function onRightClick(e: MouseEvent) {
-  menuX.value = e.clientX
-  menuY.value = e.clientY
+  // Compute the offset that will be applied when the window expands for the menu
+  const petDims = petSizeMap[settings.value.size] ?? [240, 260]
+  const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
+  const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
+  // Adjust click position to account for the window expansion shift
+  menuX.value = e.clientX + offsetX
+  menuY.value = e.clientY + offsetY
   menuVisible.value = true
 }
 
