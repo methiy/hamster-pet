@@ -548,7 +548,7 @@ async function onGrabMove(screenX: number, screenY: number) {
   } catch { /* Not in Tauri */ }
 }
 
-function onGrabEnd() {
+async function onGrabEnd() {
   isGrabbing.value = false
 
   if (grabHoldTimer) {
@@ -557,9 +557,80 @@ function onGrabEnd() {
   }
 
   // Relief reaction + speech
-  triggerReaction('happy', 2000)
   speechText.value = pickRandom(GRAB_RELEASE_PHRASES)
   speechVisible.value = true
+
+  // Drop animation: fall down then bounce
+  try {
+    const win = getCurrentWindow()
+    const pos = await win.outerPosition()
+    const startY = pos.y
+    const dropDistance = 80  // logical pixels to fall
+    const bounceHeight = 20 // bounce back up
+
+    // Phase 1: fall down (accelerating)
+    const fallDuration = 300
+    const fallStart = performance.now()
+    await new Promise<void>((resolve) => {
+      function step() {
+        const elapsed = performance.now() - fallStart
+        const progress = Math.min(elapsed / fallDuration, 1)
+        // Ease-in (accelerate like gravity)
+        const eased = progress * progress
+        const currentY = startY + dropDistance * eased
+        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        if (progress < 1) {
+          requestAnimationFrame(step)
+        } else {
+          resolve()
+        }
+      }
+      requestAnimationFrame(step)
+    })
+
+    // Phase 2: bounce up
+    const bounceUpDuration = 150
+    const bounceStart = performance.now()
+    const afterDropY = startY + dropDistance
+    await new Promise<void>((resolve) => {
+      function step() {
+        const elapsed = performance.now() - bounceStart
+        const progress = Math.min(elapsed / bounceUpDuration, 1)
+        // Ease-out (decelerate going up)
+        const eased = 1 - (1 - progress) * (1 - progress)
+        const currentY = afterDropY - bounceHeight * eased
+        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        if (progress < 1) {
+          requestAnimationFrame(step)
+        } else {
+          resolve()
+        }
+      }
+      requestAnimationFrame(step)
+    })
+
+    // Phase 3: settle back down
+    const settleDuration = 120
+    const settleStart = performance.now()
+    const bounceTopY = afterDropY - bounceHeight
+    await new Promise<void>((resolve) => {
+      function step() {
+        const elapsed = performance.now() - settleStart
+        const progress = Math.min(elapsed / settleDuration, 1)
+        const eased = progress * progress
+        const currentY = bounceTopY + bounceHeight * eased
+        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        if (progress < 1) {
+          requestAnimationFrame(step)
+        } else {
+          resolve()
+        }
+      }
+      requestAnimationFrame(step)
+    })
+  } catch { /* Not in Tauri */ }
+
+  triggerReaction('happy', 2000)
 }
 
 // --- Menu actions ---
