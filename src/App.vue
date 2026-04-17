@@ -89,6 +89,7 @@
       @reminder="onReminder"
       @status="onStatus"
       @typing="onTypingMode"
+      @pomodoro="onPomodoro"
       @settings="onSettings"
       @quit="onQuit"
       @close="closeMenu"
@@ -99,6 +100,13 @@
       :location-emoji="adventureLocation.emoji"
       :location-name="adventureLocation.name"
       :end-time="adventureEndTime"
+    />
+
+    <PomodoroNote
+      :is-running="pomodoroIsRunning"
+      :phase-emoji="pomodoroPhaseEmoji"
+      :phase-label="pomodoroPhaseLabel"
+      :display-time="pomodoroDisplayTime"
     />
 
     <ShopWindow
@@ -160,6 +168,22 @@
       @close="showStatus = false"
     />
 
+    <PomodoroPanel
+      v-if="showPomodoro"
+      :is-running="pomodoroIsRunning"
+      :work-duration="pomodoroWorkDuration"
+      :break-duration="pomodoroBreakDuration"
+      :display-time="pomodoroDisplayTime"
+      :phase-emoji="pomodoroPhaseEmoji"
+      :phase-label="pomodoroPhaseLabel"
+      :stats="pomodoroStats"
+      @close="showPomodoro = false"
+      @start="onPomodoroStart"
+      @cancel="onPomodoroCancel"
+      @update:work-duration="pomodoroWorkDuration = $event"
+      @update:break-duration="pomodoroBreakDuration = $event"
+    />
+
     <SettingsPanel
       v-if="showSettings"
       :always-on-top="settings.alwaysOnTop"
@@ -197,6 +221,8 @@ import WardrobePanel from './components/WardrobePanel.vue'
 import TypingGame from './components/TypingGame.vue'
 import ReminderPanel from './components/ReminderPanel.vue'
 import StatusPanel from './components/StatusPanel.vue'
+import PomodoroPanel from './components/PomodoroPanel.vue'
+import PomodoroNote from './components/PomodoroNote.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -210,6 +236,8 @@ import { useAppMode } from './composables/useAppMode'
 import { useReminder } from './composables/useReminder'
 import { useAudio } from './composables/useAudio'
 import { useStatus } from './composables/useStatus'
+import { usePomodoro } from './composables/usePomodoro'
+import { WORK_ENCOURAGE_PHRASES, WORK_SLACKING_PHRASES, BREAK_PHRASES, COMPLETE_PHRASES } from './data/pomodoroPhrases'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -264,6 +292,24 @@ const {
 } = useStatus()
 
 const {
+  phase: pomodoroPhase,
+  workDuration: pomodoroWorkDuration,
+  breakDuration: pomodoroBreakDuration,
+  stats: pomodoroStats,
+  isRunning: pomodoroIsRunning,
+  displayTime: pomodoroDisplayTime,
+  phaseEmoji: pomodoroPhaseEmoji,
+  phaseLabel: pomodoroPhaseLabel,
+  startWork: pomodoroStartWork,
+  cancel: pomodoroCancel,
+  reportSlacking: pomodoroReportSlacking,
+  setCallbacks: pomodoroSetCallbacks,
+  getPomodoroData,
+  loadPomodoroData,
+  destroy: pomodoroDestroy,
+} = usePomodoro()
+
+const {
   coins,
   ownedFoods,
   ownedDecorations,
@@ -314,10 +360,19 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   loadReminders,
   getStatusData,
   loadStatusData,
+  getPomodoroData,
+  loadPomodoroData,
 })
 
 // --- Activity sensing & reaction ---
 const { currentActivity, windowInfo } = useActivitySensor()
+
+// Check for slacking during pomodoro work phase
+watch(currentActivity, (activity) => {
+  if (pomodoroPhase.value === 'work' && (activity === 'video' || activity === 'gaming')) {
+    pomodoroReportSlacking()
+  }
+})
 
 function showSpeechText(text: string) {
   speechText.value = text
@@ -360,6 +415,7 @@ const showSettings = ref(false)
 const showWardrobe = ref(false)
 const showReminder = ref(false)
 const showStatus = ref(false)
+const showPomodoro = ref(false)
 
 // --- Speech bubble ---
 const speechText = ref('')
@@ -371,7 +427,7 @@ let lastHoverSpeechTime = 0
 // --- Any popup open ---
 const anyPopupOpen = computed(() =>
   showShop.value || showFeed.value || showPostcards.value ||
-  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value || showStatus.value
+  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value || showStatus.value || showPomodoro.value
 )
 
 // --- Expand window when popup/menu is open to avoid clipping ---
@@ -840,6 +896,22 @@ function onStatus() {
   showStatus.value = true
 }
 
+function onPomodoro() {
+  closeMenu()
+  showPomodoro.value = true
+}
+
+function onPomodoroStart() {
+  pomodoroStartWork()
+  showPomodoro.value = false
+  showToast({ type: 'info', icon: '🍅', title: '番茄钟开始！', message: `专注 ${pomodoroWorkDuration.value} 分钟` })
+}
+
+function onPomodoroCancel() {
+  pomodoroCancel()
+  showToast({ type: 'info', icon: '🍅', title: '番茄钟已取消' })
+}
+
 function onTypingMode() {
   closeMenu()
   setMode('work')
@@ -996,6 +1068,35 @@ onMounted(async () => {
   startPeriodicCheck()
   startDecay()
   initModeListener()
+
+  // Setup pomodoro callbacks
+  pomodoroSetCallbacks({
+    onComplete: (coinReward: number) => {
+      coins.value += coinReward
+      recordCoinsEarned(coinReward)
+      showSpeechText(pickRandom(COMPLETE_PHRASES))
+      showToast({ type: 'reward', icon: '🍅', title: '番茄完成！', message: `获得 ${coinReward} 金币` })
+      playSound('coin')
+      triggerHappy()
+    },
+    onSlackDetected: () => {
+      showSpeechText(pickRandom(WORK_SLACKING_PHRASES))
+      playSound('notification')
+    },
+    onEncourage: () => {
+      if (Math.random() < 0.3) {
+        showSpeechText(pickRandom(WORK_ENCOURAGE_PHRASES))
+      }
+    },
+    onBreakStart: () => {
+      showSpeechText(pickRandom(BREAK_PHRASES))
+      playSound('notification')
+    },
+    onBreakEnd: () => {
+      showToast({ type: 'info', icon: '☕', title: '休息结束！', message: '准备好下一个番茄了吗？' })
+      playSound('notification')
+    },
+  })
   adventureTimer = setInterval(pollAdventure, 5000)
   reminderTimer = setInterval(() => {
     const due = checkDueReminders()
@@ -1058,6 +1159,7 @@ onUnmounted(() => {
   stopDecay()
   destroyModeListener()
   cancelAnimation()
+  pomodoroDestroy()
   if (adventureTimer) clearInterval(adventureTimer)
   if (reminderTimer) clearInterval(reminderTimer)
   if (clickTimer) clearTimeout(clickTimer)
