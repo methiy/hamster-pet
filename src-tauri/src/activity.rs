@@ -269,3 +269,4 @@ pub mod platform {
     pub fn get_cursor_position() -> Option<CursorPosition> {
         None
     }
+}
