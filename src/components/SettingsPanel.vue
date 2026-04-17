@@ -48,6 +48,17 @@
           </div>
         </div>
 
+        <div class="setting-row city-row">
+          <span class="setting-label">🌤️ 天气城市</span>
+          <input
+            type="text"
+            :value="weatherCity"
+            class="city-input"
+            placeholder="如: Beijing"
+            @change="emit('update:weatherCity', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+
         <div class="about-section">
           <div class="about-text">仓鼠宠物 v0.3.0</div>
           <div class="about-heart">❤️</div>
@@ -63,6 +74,7 @@ defineProps<{
   size: string
   volume: number
   muted: boolean
+  weatherCity: string
 }>()
 
 const emit = defineEmits<{
@@ -71,6 +83,7 @@ const emit = defineEmits<{
   'update:size': [value: string]
   'update:volume': [value: number]
   'update:muted': [value: boolean]
+  'update:weatherCity': [value: string]
 }>()
 
 const sizeOptions = [
@@ -258,5 +271,26 @@ const sizeOptions = [
   border-radius: 50%;
   background: #F2A65A;
   cursor: pointer;
+}
+
+.city-row {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.city-input {
+  width: 120px;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #5C4033;
+  background: white;
+}
+
+.city-input:focus {
+  outline: none;
+  border-color: #F2A65A;
 }
 </style>

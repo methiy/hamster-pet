@@ -77,6 +77,11 @@
       </div>
     </div>
 
+    <WeatherWidget
+      :weather="weather"
+      :emoji="weatherEmoji"
+    />
+
     <ContextMenu
       :visible="menuVisible"
       :x="menuX"
@@ -190,11 +195,13 @@
       :size="settings.size"
       :volume="settings.volume ?? 70"
       :muted="settings.muted ?? false"
+      :weather-city="settings.weatherCity ?? ''"
       @close="showSettings = false"
       @update:always-on-top="onToggleAlwaysOnTop"
       @update:size="onChangeSize"
       @update:volume="onChangeVolume"
       @update:muted="onChangeMuted"
+      @update:weather-city="onChangeWeatherCity"
     />
 
     <ToastNotification />
@@ -223,6 +230,7 @@ import ReminderPanel from './components/ReminderPanel.vue'
 import StatusPanel from './components/StatusPanel.vue'
 import PomodoroPanel from './components/PomodoroPanel.vue'
 import PomodoroNote from './components/PomodoroNote.vue'
+import WeatherWidget from './components/WeatherWidget.vue'
 import { useHamster } from './composables/useHamster'
 import { useInventory } from './composables/useInventory'
 import { useAdventure } from './composables/useAdventure'
@@ -238,6 +246,8 @@ import { useAudio } from './composables/useAudio'
 import { useStatus } from './composables/useStatus'
 import { usePomodoro } from './composables/usePomodoro'
 import { WORK_ENCOURAGE_PHRASES, WORK_SLACKING_PHRASES, BREAK_PHRASES, COMPLETE_PHRASES } from './data/pomodoroPhrases'
+import { useWeather } from './composables/useWeather'
+import { WEATHER_PHRASES } from './data/weatherPhrases'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -310,6 +320,16 @@ const {
 } = usePomodoro()
 
 const {
+  weather,
+  weatherEmoji,
+  updateWeather,
+  startAutoFetch,
+  stopAutoFetch,
+} = useWeather()
+
+let lastWeatherCondition: string | null = null
+
+const {
   coins,
   ownedFoods,
   ownedDecorations,
@@ -372,6 +392,19 @@ watch(currentActivity, (activity) => {
   if (pomodoroPhase.value === 'work' && (activity === 'video' || activity === 'gaming')) {
     pomodoroReportSlacking()
   }
+})
+
+// Weather change speech
+watch(weather, (w) => {
+  if (!w) return
+  if (lastWeatherCondition && lastWeatherCondition !== w.condition) {
+    // Weather changed — say something
+    const phrases = WEATHER_PHRASES[w.condition]
+    if (phrases && phrases.length > 0) {
+      showSpeechText(phrases[Math.floor(Math.random() * phrases.length)])
+    }
+  }
+  lastWeatherCondition = w.condition
 })
 
 function showSpeechText(text: string) {
@@ -988,6 +1021,13 @@ function onChangeMuted(value: boolean) {
   settings.value = { ...settings.value, muted: value }
 }
 
+function onChangeWeatherCity(value: string) {
+  settings.value = { ...settings.value, weatherCity: value }
+  if (value.trim()) {
+    updateWeather(value)
+  }
+}
+
 async function onQuit() {
   closeMenu()
   save()
@@ -1068,6 +1108,9 @@ onMounted(async () => {
   startPeriodicCheck()
   startDecay()
   initModeListener()
+
+  // Start weather auto-fetch
+  startAutoFetch(() => settings.value.weatherCity ?? '')
 
   // Setup pomodoro callbacks
   pomodoroSetCallbacks({
@@ -1160,6 +1203,7 @@ onUnmounted(() => {
   destroyModeListener()
   cancelAnimation()
   pomodoroDestroy()
+  stopAutoFetch()
   if (adventureTimer) clearInterval(adventureTimer)
   if (reminderTimer) clearInterval(reminderTimer)
   if (clickTimer) clearTimeout(clickTimer)
