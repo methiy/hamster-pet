@@ -327,20 +327,19 @@ watch(needsExpandedWindow, async (expanded) => {
     let scale = 1.0
     try { scale = await win.scaleFactor() } catch { /* fallback */ }
     const petDims = petSizeMap[settings.value.size] ?? [240, 260]
+    // Offsets are in logical pixels, scale to physical
+    const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
+    const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
     if (expanded) {
-      // Get current position (physical pixels) so we can offset to keep pet in place
       const pos = await win.outerPosition()
-      // Offsets are in logical pixels, scale to physical
-      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
-      const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
-      await win.setSize(new LogicalSize(EXPANDED_WIN_SIZE.w, EXPANDED_WIN_SIZE.h))
+      // Move first, then resize — avoids the flash where window is big but not yet repositioned
       await win.setPosition(new PhysicalPosition(pos.x - offsetX, pos.y - offsetY))
+      await win.setSize(new LogicalSize(EXPANDED_WIN_SIZE.w, EXPANDED_WIN_SIZE.h))
     } else {
       const pos = await win.outerPosition()
-      const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
-      const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
-      await win.setPosition(new PhysicalPosition(pos.x + offsetX, pos.y + offsetY))
+      // Resize first, then move — avoids the flash where window is small but still at expanded position
       await win.setSize(new LogicalSize(petDims[0], petDims[1]))
+      await win.setPosition(new PhysicalPosition(pos.x + offsetX, pos.y + offsetY))
     }
   } catch { /* Not in Tauri */ }
 })
