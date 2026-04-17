@@ -25,10 +25,33 @@ const PUSH_DURATION = 3000
 /** Walk speed: px per ms */
 const WALK_SPEED = 0.15
 
+export type PushDirection = 'left' | 'right' | 'up' | 'down'
+
+/**
+ * Pet window is 250×300 in pet mode.
+ * Hamster sprite (120px wide) is centered at bottom of window.
+ * These offsets help position the pet so it visually touches the target window edge.
+ */
+const PET_WIN_W = 250
+// Horizontal offset: pet window left → hamster right edge ≈ 185px
+const H_RIGHT_EDGE = 185
+// Horizontal offset: pet window left → hamster left edge ≈ 65px
+const H_LEFT_EDGE = 65
+// Vertical offset: pet window top → hamster top ≈ 170px
+const H_TOP_EDGE = 170
+// Vertical offset: pet window top → hamster bottom ≈ 290px
+const H_BOTTOM_EDGE = 290
+
+function pickRandomDirection(): PushDirection {
+  const dirs: PushDirection[] = ['left', 'right', 'up', 'down']
+  return dirs[Math.floor(Math.random() * dirs.length)]
+}
+
 export function usePushAnimation(callbacks: PushCallbacks) {
   const isPushing = ref(false)
   const isWalking = ref(false)
   const isWalkingBack = ref(false)
+  const pushDirection = ref<PushDirection>('right')
 
   let animationFrame: number | null = null
   let cancelled = false
@@ -82,7 +105,8 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     hamsterY: number,
     targetWinX: number,
     targetWinY: number,
-    pushDirX: number,  // normalized direction
+    dirX: number,  // normalized direction X (-1, 0, or 1)
+    dirY: number,  // normalized direction Y (-1, 0, or 1)
     distance: number,
     durationMs: number,
   ): Promise<void> {
@@ -98,15 +122,17 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         // Linear for a steady push feel
         const moved = distance * progress
 
-        const hx = hamsterX + pushDirX * moved
-        const tx = targetWinX + pushDirX * moved
+        const hx = hamsterX + dirX * moved
+        const hy = hamsterY + dirY * moved
+        const tx = targetWinX + dirX * moved
+        const ty = targetWinY + dirY * moved
 
         // Move hamster
-        appWindow.setPosition(new LogicalPosition(Math.round(hx), Math.round(hamsterY)))
+        appWindow.setPosition(new LogicalPosition(Math.round(hx), Math.round(hy)))
           .catch(() => {})
 
         // Move target foreground window via Rust command (captured HWND)
-        invoke('move_captured_window', { x: Math.round(tx), y: Math.round(targetWinY) })
+        invoke('move_captured_window', { x: Math.round(tx), y: Math.round(ty) })
           .catch(() => {})
 
         if (progress < 1) {
@@ -150,9 +176,50 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const startX = startPos.x
       const startY = startPos.y
 
-      // Target: left edge of the foreground window, vertically centered
-      const approachX = targetRect.left - 140
-      const approachY = Math.round((targetRect.top + targetRect.bottom) / 2) - 60
+      // 2. Pick a random push direction
+      const dir = pickRandomDirection()
+      pushDirection.value = dir
+
+      // Calculate approach position: pet stands on the OPPOSITE side of push direction
+      // and needs to visually touch the window edge
+      let approachX: number
+      let approachY: number
+      let dirX = 0
+      let dirY = 0
+
+      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2)
+      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2)
+
+      switch (dir) {
+        case 'right':
+          // Pet stands on the LEFT side of the window, pushes right
+          // Pet's right edge (H_RIGHT_EDGE from pet window left) should touch target's left edge
+          approachX = targetRect.left - H_RIGHT_EDGE
+          approachY = targetCenterY - H_BOTTOM_EDGE + 20  // vertically centered on hamster
+          dirX = 1
+          break
+        case 'left':
+          // Pet stands on the RIGHT side of the window, pushes left
+          // Pet's left edge (H_LEFT_EDGE from pet window left) should touch target's right edge
+          approachX = targetRect.right - H_LEFT_EDGE
+          approachY = targetCenterY - H_BOTTOM_EDGE + 20
+          dirX = -1
+          break
+        case 'down':
+          // Pet stands ABOVE the window, pushes down
+          // Pet's bottom edge (H_BOTTOM_EDGE from pet window top) should touch target's top edge
+          approachX = targetCenterX - PET_WIN_W / 2
+          approachY = targetRect.top - H_BOTTOM_EDGE
+          dirY = 1
+          break
+        case 'up':
+          // Pet stands BELOW the window, pushes up
+          // Pet's top edge (H_TOP_EDGE from pet window top) should touch target's bottom edge
+          approachX = targetCenterX - PET_WIN_W / 2
+          approachY = targetRect.bottom - H_TOP_EDGE
+          dirY = -1
+          break
+      }
 
       // Calculate walk distance → duration (slow walk)
       const dx = approachX - startX
@@ -160,13 +227,13 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const walkDist = Math.sqrt(dx * dx + dy * dy)
       const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
 
-      // 2. Walk to the target window
+      // 3. Walk to the target window
       isWalking.value = true
       callbacks.triggerReaction('running', walkDuration + 1000)
       await animateHamsterMove(startX, startY, approachX, approachY, walkDuration)
       if (cancelled) return
 
-      // 3. Arrive — show push phrase
+      // 4. Arrive — show push phrase
       isWalking.value = false
       const pushPhrases = PUSH_PHRASES[activity]
       const phrase = pushPhrases.length > 0
@@ -179,27 +246,27 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       await new Promise(resolve => setTimeout(resolve, 500))
       if (cancelled) return
 
-      // 4. Push! Hamster and target window slide together
-      const pushDirX = 1  // push the window to the right
+      // 5. Push! Hamster and target window slide together
       await animatePushTogether(
         approachX, approachY,
         targetRect.left, targetRect.top,
-        pushDirX,
+        dirX, dirY,
         PUSH_DISTANCE,
         PUSH_DURATION,
       )
       if (cancelled) return
 
-      // 5. Walk back to original position
-      const afterPushX = approachX + PUSH_DISTANCE
+      // 6. Walk back to original position
+      const afterPushX = approachX + dirX * PUSH_DISTANCE
+      const afterPushY = approachY + dirY * PUSH_DISTANCE
       isWalkingBack.value = true
       callbacks.triggerReaction('running', 2000)
 
       const returnDist = Math.sqrt(
-        (startX - afterPushX) ** 2 + (startY - approachY) ** 2,
+        (startX - afterPushX) ** 2 + (startY - afterPushY) ** 2,
       )
       const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-      await animateHamsterMove(afterPushX, approachY, startX, startY, returnDuration)
+      await animateHamsterMove(afterPushX, afterPushY, startX, startY, returnDuration)
 
       isWalkingBack.value = false
     } catch {
@@ -227,6 +294,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     isPushing,
     isWalking,
     isWalkingBack,
+    pushDirection,
     startPush,
     cancelAnimation,
   }

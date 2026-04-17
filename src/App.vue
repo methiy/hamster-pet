@@ -7,7 +7,7 @@
     @dblclick="onDoubleClick"
   >
     <!-- Normal mode: full pet view -->
-    <div v-if="!isWorkMode" class="hamster-area" :class="{ 'hamster-pushing': isPushing && !isWalking && !isWalkingBack, 'hamster-flipped': isWalkingBack }" :style="hamsterScaleStyle">
+    <div v-if="!isWorkMode" class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
       <SpeechBubble
         :text="speechText"
         :visible="speechVisible"
@@ -256,7 +256,7 @@ function showSpeechText(text: string) {
   speechVisible.value = true
 }
 
-const { isPushing, isWalking, isWalkingBack, startPush, cancelAnimation } = usePushAnimation({
+const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, cancelAnimation } = usePushAnimation({
   showSpeech: showSpeechText,
   triggerReaction,
   onComplete: () => {
@@ -316,6 +316,21 @@ const hamsterScaleStyle = computed(() => {
   const scale = sizeScaleMap[settings.value.size] ?? 1.0
   if (scale === 1.0) return {}
   return { transform: `translateX(-50%) scale(${scale})`, transformOrigin: 'bottom center' }
+})
+
+const pushAnimationClasses = computed(() => {
+  const pushing = isPushing.value && !isWalking.value && !isWalkingBack.value
+  const dir = pushDirection.value
+  return {
+    'hamster-pushing': pushing,
+    'hamster-push-left': pushing && dir === 'left',
+    'hamster-push-right': pushing && dir === 'right',
+    'hamster-push-up': pushing && dir === 'up',
+    'hamster-push-down': pushing && dir === 'down',
+    // Walking to window: face direction of movement (handled by walk logic)
+    // Walking back: flip to face return direction
+    'hamster-flipped': isWalkingBack.value || (isWalking.value && dir === 'right') || (pushing && dir === 'left'),
+  }
 })
 
 // --- Visible decorations ---
@@ -842,9 +857,45 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
-/* Push animation: hamster leans forward */
+/* Push animation: hamster leans forward in push direction */
 .hamster-pushing {
   animation: push-lean 0.6s ease-in-out infinite alternate;
+}
+
+/* Push right: lean right (default) */
+.hamster-push-right {
+  animation-name: push-lean-right;
+}
+@keyframes push-lean-right {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) rotate(-15deg); }
+}
+
+/* Push left: face left (flipped) and lean into push */
+.hamster-push-left {
+  animation-name: push-lean-left;
+}
+@keyframes push-lean-left {
+  0% { transform: translateX(-50%) scaleX(-1) rotate(0deg); }
+  100% { transform: translateX(-50%) scaleX(-1) rotate(-15deg); }
+}
+
+/* Push up: lean backward slightly */
+.hamster-push-up {
+  animation-name: push-lean-up;
+}
+@keyframes push-lean-up {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) translateY(-5px) rotate(0deg); }
+}
+
+/* Push down: lean forward / push down */
+.hamster-push-down {
+  animation-name: push-lean-down;
+}
+@keyframes push-lean-down {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) translateY(5px) rotate(0deg); }
 }
 
 @keyframes push-lean {
