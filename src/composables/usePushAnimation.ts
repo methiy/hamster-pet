@@ -126,6 +126,122 @@ export function usePushAnimation(callbacks: PushCallbacks) {
   }
 
   /**
+   * Walk to a dynamically updating target. Every `pollIntervalMs` the
+   * `getTarget` callback is called to get the latest endpoint.
+   * Returns the final position the pet arrived at, or null if cancelled/invalid.
+   */
+  function animateTrackingWalk(
+    startX: number,
+    startY: number,
+    initialEndX: number,
+    initialEndY: number,
+    getTarget: () => Promise<{ valid: boolean; x: number; y: number } | null>,
+    pollIntervalMs = 500,
+  ): Promise<{ endX: number; endY: number } | null> {
+    return new Promise((resolve) => {
+      if (cancelled) { resolve(null); return }
+      const appWindow = getCurrentWindow()
+
+      let currentEndX = initialEndX
+      let currentEndY = initialEndY
+      let lastPollTime = performance.now()
+
+      // We track the current hamster position so we can smoothly redirect
+      let hamsterX = startX
+      let hamsterY = startY
+
+      function step(now: number) {
+        if (cancelled) { resolve(null); return }
+
+        // Periodically poll for updated target position
+        if (now - lastPollTime > pollIntervalMs) {
+          lastPollTime = now
+          getTarget().then(result => {
+            if (result === null || !result.valid) {
+              // Target gone — we'll handle this on arrival check
+              return
+            }
+            currentEndX = result.x
+            currentEndY = result.y
+          }).catch(() => {})
+        }
+
+        // Calculate distance to current target
+        const dx = currentEndX - hamsterX
+        const dy = currentEndY - hamsterY
+        const distRemaining = Math.sqrt(dx * dx + dy * dy)
+
+        // Arrived (close enough)
+        if (distRemaining < 3) {
+          appWindow.setPosition(new PhysicalPosition(Math.round(currentEndX), Math.round(currentEndY)))
+            .catch(() => {})
+          animationFrame = null
+          resolve({ endX: currentEndX, endY: currentEndY })
+          return
+        }
+
+        // Move toward target at constant speed (physical px per frame at ~60fps)
+        const frameMs = 16.67
+        const moveThisFrame = WALK_SPEED * frameMs
+        const ratio = Math.min(moveThisFrame / distRemaining, 1)
+
+        hamsterX += dx * ratio
+        hamsterY += dy * ratio
+
+        appWindow.setPosition(new PhysicalPosition(Math.round(hamsterX), Math.round(hamsterY)))
+          .catch(() => {})
+
+        animationFrame = requestAnimationFrame(step)
+      }
+
+      animationFrame = requestAnimationFrame(step)
+    })
+  }
+
+  /** Compute the approach position for a given direction and target rect */
+  function computeApproachPosition(
+    rect: WindowRect,
+    dir: PushDirection,
+    scale: number,
+  ): { x: number; y: number; dirX: number; dirY: number } {
+    const petWinW = PET_WIN_W * scale
+    const hRightEdge = H_RIGHT_EDGE * scale
+    const hLeftEdge = H_LEFT_EDGE * scale
+    const hTopEdge = H_TOP_EDGE * scale
+    const hBottomEdge = H_BOTTOM_EDGE * scale
+
+    const targetCenterX = Math.round((rect.left + rect.right) / 2)
+    const targetCenterY = Math.round((rect.top + rect.bottom) / 2)
+
+    let x = 0, y = 0, dirX = 0, dirY = 0
+
+    switch (dir) {
+      case 'right':
+        x = rect.left - hRightEdge
+        y = targetCenterY - hBottomEdge + 20 * scale
+        dirX = 1
+        break
+      case 'left':
+        x = rect.right - hLeftEdge
+        y = targetCenterY - hBottomEdge + 20 * scale
+        dirX = -1
+        break
+      case 'down':
+        x = targetCenterX - petWinW / 2
+        y = rect.top - hBottomEdge
+        dirY = 1
+        break
+      case 'up':
+        x = targetCenterX - petWinW / 2
+        y = rect.bottom - hTopEdge
+        dirY = -1
+        break
+    }
+
+    return { x, y, dirX, dirY }
+  }
+
+  /**
    * The real push: hamster and target window move together.
    * Hamster pushes from its position, both slide in the same direction.
    */
@@ -181,7 +297,6 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     cancelled = false
 
     if (!targetRect) {
-      // No target window info, just do a simple complaint
       const phrase = ACTIVITY_PHRASES[activity].phrases[
         Math.floor(Math.random() * ACTIVITY_PHRASES[activity].phrases.length)
       ]
@@ -201,7 +316,6 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       if (processName) {
         const check = await isTargetStillValid(processName)
         if (!check.valid) {
-          // Target window gone — fall back to simple complaint
           isPushing.value = false
           const phrase = ACTIVITY_PHRASES[activity].phrases[
             Math.floor(Math.random() * ACTIVITY_PHRASES[activity].phrases.length)
@@ -217,18 +331,9 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       }
 
       // Capture the target window's HWND before we start moving
-      // (so we move the correct window even after focus changes)
       await invoke('capture_foreground_hwnd').catch(() => {})
 
-      // Get DPI scale factor to convert logical offsets to physical pixels
       const scale = await getScaleFactor()
-
-      // Scale pet offsets from logical to physical pixels
-      const petWinW = PET_WIN_W * scale
-      const hRightEdge = H_RIGHT_EDGE * scale
-      const hLeftEdge = H_LEFT_EDGE * scale
-      const hTopEdge = H_TOP_EDGE * scale
-      const hBottomEdge = H_BOTTOM_EDGE * scale
 
       // 1. Remember current position (physical pixels)
       const startPos = await appWindow.outerPosition()
@@ -239,76 +344,57 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const dir = pickRandomDirection()
       pushDirection.value = dir
 
-      // Calculate approach position: pet stands on the OPPOSITE side of push direction
-      // and needs to visually touch the window edge
-      // currentTargetRect is in physical pixels (from GetWindowRect), offsets scaled to physical
-      let approachX: number
-      let approachY: number
-      let dirX = 0
-      let dirY = 0
+      // 3. Compute initial approach position
+      let approach = computeApproachPosition(currentTargetRect, dir, scale)
 
-      const targetCenterX = Math.round((currentTargetRect.left + currentTargetRect.right) / 2)
-      const targetCenterY = Math.round((currentTargetRect.top + currentTargetRect.bottom) / 2)
-
-      switch (dir) {
-        case 'right':
-          // Pet stands on the LEFT side of the window, pushes right
-          approachX = currentTargetRect.left - hRightEdge
-          approachY = targetCenterY - hBottomEdge + 20 * scale
-          dirX = 1
-          break
-        case 'left':
-          // Pet stands on the RIGHT side of the window, pushes left
-          approachX = currentTargetRect.right - hLeftEdge
-          approachY = targetCenterY - hBottomEdge + 20 * scale
-          dirX = -1
-          break
-        case 'down':
-          // Pet stands ABOVE the window, pushes down
-          approachX = targetCenterX - petWinW / 2
-          approachY = currentTargetRect.top - hBottomEdge
-          dirY = 1
-          break
-        case 'up':
-          // Pet stands BELOW the window, pushes up
-          approachX = targetCenterX - petWinW / 2
-          approachY = currentTargetRect.bottom - hTopEdge
-          dirY = -1
-          break
-      }
-
-      // Calculate walk distance → duration (slow walk)
-      const dx = approachX - startX
-      const dy = approachY - startY
-      const walkDist = Math.sqrt(dx * dx + dy * dy)
-      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
-
-      // 3. Walk to the target window
+      // 4. Walk to the target window with real-time tracking
       isWalking.value = true
-      callbacks.triggerReaction('running', walkDuration + 1000)
-      await animateHamsterMove(startX, startY, approachX, approachY, walkDuration)
+      callbacks.triggerReaction('running', 15000)
+
+      await animateTrackingWalk(
+        startX, startY,
+        approach.x, approach.y,
+        async () => {
+          if (!processName) return null
+          const check = await isTargetStillValid(processName)
+          if (!check.valid || !check.freshRect) return { valid: false, x: 0, y: 0 }
+          currentTargetRect = check.freshRect
+          const newApproach = computeApproachPosition(currentTargetRect, dir, scale)
+          approach = newApproach
+          return { valid: true, x: newApproach.x, y: newApproach.y }
+        },
+        400, // poll every 400ms
+      )
       if (cancelled) return
 
-      // --- Checkpoint B: validate target window after walk, before push ---
+      // --- Checkpoint B: final validation after walk ---
       if (processName) {
         const check = await isTargetStillValid(processName)
         if (!check.valid) {
-          // Target window gone — skip push, walk back to original position
           isWalking.value = false
           isWalkingBack.value = true
           callbacks.triggerReaction('running', 2000)
-          const returnDist = Math.sqrt((startX - approachX) ** 2 + (startY - approachY) ** 2)
+          const currentPos = await appWindow.outerPosition()
+          const returnDist = Math.sqrt((startX - currentPos.x) ** 2 + (startY - currentPos.y) ** 2)
           const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-          await animateHamsterMove(approachX, approachY, startX, startY, returnDuration)
+          await animateHamsterMove(currentPos.x, currentPos.y, startX, startY, returnDuration)
           isWalkingBack.value = false
           return
         }
         if (check.freshRect) {
           currentTargetRect = check.freshRect
+          // Recompute final approach to ensure pet is touching the edge
+          approach = computeApproachPosition(currentTargetRect, dir, scale)
         }
       }
 
-      // 4. Arrive — show push phrase
+      // 5. Snap to exact approach position (ensure touching edge)
+      const finalApproachX = approach.x
+      const finalApproachY = approach.y
+      await appWindow.setPosition(new PhysicalPosition(Math.round(finalApproachX), Math.round(finalApproachY)))
+        .catch(() => {})
+
+      // 6. Arrive — show push phrase
       isWalking.value = false
       const pushPhrases = PUSH_PHRASES[activity]
       const phrase = pushPhrases.length > 0
@@ -321,20 +407,20 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       await new Promise(resolve => setTimeout(resolve, 500))
       if (cancelled) return
 
-      // 5. Push! Hamster and target window slide together
+      // 7. Push! Hamster and target window slide together
       const pushDist = PUSH_DISTANCE * scale
       await animatePushTogether(
-        approachX, approachY,
+        finalApproachX, finalApproachY,
         currentTargetRect.left, currentTargetRect.top,
-        dirX, dirY,
+        approach.dirX, approach.dirY,
         pushDist,
         PUSH_DURATION,
       )
       if (cancelled) return
 
-      // 6. Walk back to original position
-      const afterPushX = approachX + dirX * pushDist
-      const afterPushY = approachY + dirY * pushDist
+      // 8. Walk back to original position
+      const afterPushX = finalApproachX + approach.dirX * pushDist
+      const afterPushY = finalApproachY + approach.dirY * pushDist
       isWalkingBack.value = true
       callbacks.triggerReaction('running', 2000)
 
@@ -364,7 +450,6 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     cancelled = false
 
     if (!targetRect) {
-      // No target window, just say something
       const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
       callbacks.showSpeech(phrase)
       callbacks.triggerReaction('happy', 2000)
@@ -377,12 +462,11 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     try {
       const appWindow = getCurrentWindow()
 
-      // --- Checkpoint A: validate target window before starting walk ---
+      // --- Checkpoint A ---
       let currentTargetRect = targetRect
       if (processName) {
         const check = await isTargetStillValid(processName)
         if (!check.valid) {
-          // Target window gone — fall back to simple phrase
           isPushing.value = false
           const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
           callbacks.showSpeech(phrase)
@@ -395,80 +479,85 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         }
       }
 
-      // Capture the target window HWND
       await invoke('capture_foreground_hwnd').catch(() => {})
 
-      // Get DPI scale factor
       const scale = await getScaleFactor()
       const petWinW = PET_WIN_W * scale
       const hBottomEdge = H_BOTTOM_EDGE * scale
 
-      // 1. Remember current position (physical pixels)
       const startPos = await appWindow.outerPosition()
       const startX = startPos.x
       const startY = startPos.y
 
-      // 2. Calculate center of target window (physical pixels)
-      const targetCenterX = Math.round((currentTargetRect.left + currentTargetRect.right) / 2) - petWinW / 2
-      const targetCenterY = Math.round((currentTargetRect.top + currentTargetRect.bottom) / 2) - hBottomEdge + 20 * scale
+      // Helper to compute center target from a rect
+      const computeCenter = (rect: WindowRect) => ({
+        x: Math.round((rect.left + rect.right) / 2) - petWinW / 2,
+        y: Math.round((rect.top + rect.bottom) / 2) - hBottomEdge + 20 * scale,
+      })
 
-      // 3. Walk to center of the video window
-      const dx = targetCenterX - startX
-      const dy = targetCenterY - startY
-      const walkDist = Math.sqrt(dx * dx + dy * dy)
-      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
+      let center = computeCenter(currentTargetRect)
 
+      // Walk to center with real-time tracking
       isWalking.value = true
-      pushDirection.value = dx > 0 ? 'right' : 'left'
-      callbacks.triggerReaction('running', walkDuration + 1000)
-      await animateHamsterMove(startX, startY, targetCenterX, targetCenterY, walkDuration)
+      pushDirection.value = center.x > startX ? 'right' : 'left'
+      callbacks.triggerReaction('running', 15000)
+
+      await animateTrackingWalk(
+        startX, startY,
+        center.x, center.y,
+        async () => {
+          if (!processName) return null
+          const check = await isTargetStillValid(processName)
+          if (!check.valid || !check.freshRect) return { valid: false, x: 0, y: 0 }
+          currentTargetRect = check.freshRect
+          center = computeCenter(currentTargetRect)
+          return { valid: true, x: center.x, y: center.y }
+        },
+        400,
+      )
       if (cancelled) return
 
-      // --- Checkpoint B: validate target window after walk, before sending space ---
+      // --- Checkpoint B ---
       if (processName) {
         const check = await isTargetStillValid(processName)
         if (!check.valid) {
-          // Target window gone — skip space key, walk back
           isWalking.value = false
           isWalkingBack.value = true
           callbacks.triggerReaction('running', 2000)
-          const returnDist = Math.sqrt((startX - targetCenterX) ** 2 + (startY - targetCenterY) ** 2)
+          const currentPos = await appWindow.outerPosition()
+          const returnDist = Math.sqrt((startX - currentPos.x) ** 2 + (startY - currentPos.y) ** 2)
           const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-          await animateHamsterMove(targetCenterX, targetCenterY, startX, startY, returnDuration)
+          await animateHamsterMove(currentPos.x, currentPos.y, startX, startY, returnDuration)
           isWalkingBack.value = false
           return
         }
       }
 
-      // 4. Arrive — show video pause phrase
+      // Arrive — show video pause phrase
       isWalking.value = false
       const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
       callbacks.showSpeech(phrase)
 
-      // 5. Short pause before sending space
       await new Promise(resolve => setTimeout(resolve, 500))
       if (cancelled) return
 
-      // 6. Send space key to pause the video
       await invoke('send_space_to_window').catch(() => {})
-
-      // 7. Happy reaction after pausing
       callbacks.triggerReaction('happy', 2500)
 
-      // 8. Stay for 2 seconds so user sees the pet
       await new Promise(resolve => setTimeout(resolve, 2000))
       if (cancelled) return
 
-      // 9. Walk back to original position
+      // Walk back to original position
+      const currentPos = await appWindow.outerPosition()
       isWalkingBack.value = true
-      pushDirection.value = targetCenterX > startX ? 'right' : 'left'
+      pushDirection.value = currentPos.x > startX ? 'right' : 'left'
       callbacks.triggerReaction('running', 2000)
 
       const returnDist = Math.sqrt(
-        (startX - targetCenterX) ** 2 + (startY - targetCenterY) ** 2,
+        (startX - currentPos.x) ** 2 + (startY - currentPos.y) ** 2,
       )
       const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-      await animateHamsterMove(targetCenterX, targetCenterY, startX, startY, returnDuration)
+      await animateHamsterMove(currentPos.x, currentPos.y, startX, startY, returnDuration)
 
       isWalkingBack.value = false
     } catch {
