@@ -83,12 +83,38 @@ pub fn run() {
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
-            // Register Ctrl+Shift+P global shortcut for summoning the pet
+            // Register global shortcuts
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+            // Ctrl+Shift+P — Summon pet
             let handle = app.handle().clone();
             app.global_shortcut().on_shortcut("Ctrl+Shift+P", move |_app, _shortcut, event| {
                 if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     let _ = handle.emit("summon-pet", ());
+                }
+            })?;
+
+            // Ctrl+Shift+F — Feed
+            let handle2 = app.handle().clone();
+            app.global_shortcut().on_shortcut("Ctrl+Shift+F", move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = handle2.emit("tray-action", "feed");
+                }
+            })?;
+
+            // Ctrl+Shift+N — Reminder
+            let handle3 = app.handle().clone();
+            app.global_shortcut().on_shortcut("Ctrl+Shift+N", move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = handle3.emit("tray-action", "reminder");
+                }
+            })?;
+
+            // Ctrl+Shift+T — Pomodoro
+            let handle4 = app.handle().clone();
+            app.global_shortcut().on_shortcut("Ctrl+Shift+T", move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = handle4.emit("tray-action", "pomodoro");
                 }
             })?;
 

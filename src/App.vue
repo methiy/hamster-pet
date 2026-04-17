@@ -1049,6 +1049,7 @@ watch(mode, (newMode) => {
 let adventureTimer: ReturnType<typeof setInterval> | null = null
 let reminderTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
+let unlistenTrayAction: (() => void) | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1192,6 +1193,33 @@ onMounted(async () => {
       } catch { /* Not in Tauri */ }
     })
   } catch { /* Not in Tauri */ }
+
+  // Listen for tray-action events (from tray menu or global shortcuts)
+  try {
+    unlistenTrayAction = await listen<string>('tray-action', (event) => {
+      const action = event.payload
+      switch (action) {
+        case 'feed':
+          showFeed.value = true
+          break
+        case 'shop':
+          showShop.value = true
+          break
+        case 'reminder':
+          showReminder.value = true
+          break
+        case 'status':
+          showStatus.value = true
+          break
+        case 'pomodoro':
+          showPomodoro.value = true
+          break
+        case 'settings':
+          showSettings.value = true
+          break
+      }
+    })
+  } catch { /* Not in Tauri */ }
 })
 
 onUnmounted(() => {
@@ -1208,6 +1236,7 @@ onUnmounted(() => {
   if (reminderTimer) clearInterval(reminderTimer)
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
+  if (unlistenTrayAction) unlistenTrayAction()
 })
 </script>
 

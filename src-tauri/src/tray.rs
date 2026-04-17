@@ -5,17 +5,31 @@ use tauri::{
 };
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let summon = MenuItemBuilder::with_id("summon", "📍 召唤宠物").build(app)?;
+    let summon = MenuItemBuilder::with_id("summon", "📍 召唤宠物  Ctrl+Shift+P").build(app)?;
     let pet_mode = MenuItemBuilder::with_id("pet_mode", "🐹 宠物模式").build(app)?;
     let work_mode = MenuItemBuilder::with_id("work_mode", "⌨️ 打字模式").build(app)?;
-    let separator = PredefinedMenuItem::separator(app)?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let feed = MenuItemBuilder::with_id("feed", "🍽️ 喂食  Ctrl+Shift+F").build(app)?;
+    let shop = MenuItemBuilder::with_id("shop", "🏪 商店").build(app)?;
+    let reminder = MenuItemBuilder::with_id("reminder", "📝 备忘  Ctrl+Shift+N").build(app)?;
+    let status = MenuItemBuilder::with_id("status", "📊 状态").build(app)?;
+    let pomodoro = MenuItemBuilder::with_id("pomodoro", "🍅 番茄钟  Ctrl+Shift+T").build(app)?;
+    let settings = MenuItemBuilder::with_id("settings", "⚙️ 设置").build(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItemBuilder::with_id("quit", "❌ 退出").build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&summon)
         .item(&pet_mode)
         .item(&work_mode)
-        .item(&separator)
+        .item(&sep1)
+        .item(&feed)
+        .item(&shop)
+        .item(&reminder)
+        .item(&status)
+        .item(&pomodoro)
+        .item(&settings)
+        .item(&sep2)
         .item(&quit)
         .build()?;
 
@@ -37,6 +51,24 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
                 "work_mode" => {
                     let _ = app.emit("mode-change", "work");
+                }
+                "feed" => {
+                    let _ = app.emit("tray-action", "feed");
+                }
+                "shop" => {
+                    let _ = app.emit("tray-action", "shop");
+                }
+                "reminder" => {
+                    let _ = app.emit("tray-action", "reminder");
+                }
+                "status" => {
+                    let _ = app.emit("tray-action", "status");
+                }
+                "pomodoro" => {
+                    let _ = app.emit("tray-action", "pomodoro");
+                }
+                "settings" => {
+                    let _ = app.emit("tray-action", "settings");
                 }
                 "quit" => {
                     app.exit(0);
