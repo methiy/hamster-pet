@@ -7,14 +7,14 @@
     @dblclick="onDoubleClick"
   >
     <!-- Normal mode: full pet view -->
-    <div v-if="!isWorkMode" class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
-      <SpeechBubble
-        :text="speechText"
-        :visible="speechVisible"
-        :is-flipped="isFlipped"
-        @hide="speechVisible = false"
-      />
+    <SpeechBubble
+      v-if="!isWorkMode"
+      :text="speechText"
+      :visible="speechVisible"
+      @hide="speechVisible = false"
+    />
 
+    <div v-if="!isWorkMode" class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
       <div class="decoration-layer">
         <img
           v-for="deco in visibleDecorations"
@@ -161,7 +161,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { LogicalPosition, LogicalSize } from '@tauri-apps/api/dpi'
+import { LogicalPosition, LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -374,12 +374,6 @@ const pushAnimationClasses = computed(() => {
   }
 })
 
-const isFlipped = computed(() => {
-  const pushing = isPushing.value && !isWalking.value && !isWalkingBack.value
-  const dir = pushDirection.value
-  return isWalkingBack.value || (isWalking.value && dir === 'right') || (pushing && dir === 'left')
-})
-
 // --- Visible decorations ---
 const decoPositionStyles: Record<string, Record<string, string>> = {
   head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '24px', height: '24px', pointerEvents: 'none', zIndex: '10' },
@@ -560,13 +554,16 @@ async function onGrabEnd() {
   speechText.value = pickRandom(GRAB_RELEASE_PHRASES)
   speechVisible.value = true
 
-  // Drop animation: fall down then bounce
+  // Drop animation: fall down then bounce (using physical pixels since outerPosition returns physical)
   try {
     const win = getCurrentWindow()
     const pos = await win.outerPosition()
+    const startX = pos.x
     const startY = pos.y
-    const dropDistance = 80  // logical pixels to fall
-    const bounceHeight = 20 // bounce back up
+    let scale = 1.0
+    try { scale = await win.scaleFactor() } catch { /* fallback */ }
+    const dropDistance = Math.round(80 * scale)   // scale to physical pixels
+    const bounceHeight = Math.round(20 * scale)
 
     // Phase 1: fall down (accelerating)
     const fallDuration = 300
@@ -575,10 +572,9 @@ async function onGrabEnd() {
       function step() {
         const elapsed = performance.now() - fallStart
         const progress = Math.min(elapsed / fallDuration, 1)
-        // Ease-in (accelerate like gravity)
         const eased = progress * progress
         const currentY = startY + dropDistance * eased
-        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        win.setPosition(new PhysicalPosition(startX, Math.round(currentY))).catch(() => {})
         if (progress < 1) {
           requestAnimationFrame(step)
         } else {
@@ -596,10 +592,9 @@ async function onGrabEnd() {
       function step() {
         const elapsed = performance.now() - bounceStart
         const progress = Math.min(elapsed / bounceUpDuration, 1)
-        // Ease-out (decelerate going up)
         const eased = 1 - (1 - progress) * (1 - progress)
         const currentY = afterDropY - bounceHeight * eased
-        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        win.setPosition(new PhysicalPosition(startX, Math.round(currentY))).catch(() => {})
         if (progress < 1) {
           requestAnimationFrame(step)
         } else {
@@ -619,7 +614,7 @@ async function onGrabEnd() {
         const progress = Math.min(elapsed / settleDuration, 1)
         const eased = progress * progress
         const currentY = bounceTopY + bounceHeight * eased
-        win.setPosition(new LogicalPosition(pos.x, Math.round(currentY))).catch(() => {})
+        win.setPosition(new PhysicalPosition(startX, Math.round(currentY))).catch(() => {})
         if (progress < 1) {
           requestAnimationFrame(step)
         } else {
