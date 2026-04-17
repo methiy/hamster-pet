@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { LogicalPosition } from '@tauri-apps/api/dpi'
+import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { invoke } from '@tauri-apps/api/core'
 import { ACTIVITY_PHRASES, PUSH_PHRASES, VIDEO_PAUSE_PHRASES, type ActivityType } from '../data/activityPhrases'
 import type { HamsterState } from './useHamster'
@@ -28,9 +28,11 @@ const WALK_SPEED = 0.15
 export type PushDirection = 'left' | 'right' | 'up' | 'down'
 
 /**
- * Pet window is 250×300 in pet mode.
+ * Pet window is 250×300 in pet mode (logical pixels).
  * Hamster sprite (120px wide) is centered at bottom of window.
  * These offsets help position the pet so it visually touches the target window edge.
+ * NOTE: These are in logical pixels and must be scaled by DPI factor when used
+ * with physical pixel coordinates from GetWindowRect.
  */
 const PET_WIN_W = 250
 // Horizontal offset: pet window left → hamster right edge ≈ 185px
@@ -41,6 +43,15 @@ const H_LEFT_EDGE = 65
 const H_TOP_EDGE = 170
 // Vertical offset: pet window top → hamster bottom ≈ 290px
 const H_BOTTOM_EDGE = 290
+
+/** Get the current DPI scale factor */
+async function getScaleFactor(): Promise<number> {
+  try {
+    return await getCurrentWindow().scaleFactor()
+  } catch {
+    return 1.0
+  }
+}
 
 function pickRandomDirection(): PushDirection {
   const dirs: PushDirection[] = ['left', 'right', 'up', 'down']
@@ -81,7 +92,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         const currentX = startX + (endX - startX) * eased
         const currentY = startY + (endY - startY) * eased
 
-        appWindow.setPosition(new LogicalPosition(Math.round(currentX), Math.round(currentY)))
+        appWindow.setPosition(new PhysicalPosition(Math.round(currentX), Math.round(currentY)))
           .catch(() => {})
 
         if (progress < 1) {
@@ -128,7 +139,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         const ty = targetWinY + dirY * moved
 
         // Move hamster
-        appWindow.setPosition(new LogicalPosition(Math.round(hx), Math.round(hy)))
+        appWindow.setPosition(new PhysicalPosition(Math.round(hx), Math.round(hy)))
           .catch(() => {})
 
         // Move target foreground window via Rust command (captured HWND)
@@ -171,7 +182,17 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       // (so we move the correct window even after focus changes)
       await invoke('capture_foreground_hwnd').catch(() => {})
 
-      // 1. Remember current position
+      // Get DPI scale factor to convert logical offsets to physical pixels
+      const scale = await getScaleFactor()
+
+      // Scale pet offsets from logical to physical pixels
+      const petWinW = PET_WIN_W * scale
+      const hRightEdge = H_RIGHT_EDGE * scale
+      const hLeftEdge = H_LEFT_EDGE * scale
+      const hTopEdge = H_TOP_EDGE * scale
+      const hBottomEdge = H_BOTTOM_EDGE * scale
+
+      // 1. Remember current position (physical pixels)
       const startPos = await appWindow.outerPosition()
       const startX = startPos.x
       const startY = startPos.y
@@ -182,6 +203,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
 
       // Calculate approach position: pet stands on the OPPOSITE side of push direction
       // and needs to visually touch the window edge
+      // targetRect is in physical pixels (from GetWindowRect), offsets scaled to physical
       let approachX: number
       let approachY: number
       let dirX = 0
@@ -193,30 +215,26 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       switch (dir) {
         case 'right':
           // Pet stands on the LEFT side of the window, pushes right
-          // Pet's right edge (H_RIGHT_EDGE from pet window left) should touch target's left edge
-          approachX = targetRect.left - H_RIGHT_EDGE
-          approachY = targetCenterY - H_BOTTOM_EDGE + 20  // vertically centered on hamster
+          approachX = targetRect.left - hRightEdge
+          approachY = targetCenterY - hBottomEdge + 20 * scale
           dirX = 1
           break
         case 'left':
           // Pet stands on the RIGHT side of the window, pushes left
-          // Pet's left edge (H_LEFT_EDGE from pet window left) should touch target's right edge
-          approachX = targetRect.right - H_LEFT_EDGE
-          approachY = targetCenterY - H_BOTTOM_EDGE + 20
+          approachX = targetRect.right - hLeftEdge
+          approachY = targetCenterY - hBottomEdge + 20 * scale
           dirX = -1
           break
         case 'down':
           // Pet stands ABOVE the window, pushes down
-          // Pet's bottom edge (H_BOTTOM_EDGE from pet window top) should touch target's top edge
-          approachX = targetCenterX - PET_WIN_W / 2
-          approachY = targetRect.top - H_BOTTOM_EDGE
+          approachX = targetCenterX - petWinW / 2
+          approachY = targetRect.top - hBottomEdge
           dirY = 1
           break
         case 'up':
           // Pet stands BELOW the window, pushes up
-          // Pet's top edge (H_TOP_EDGE from pet window top) should touch target's bottom edge
-          approachX = targetCenterX - PET_WIN_W / 2
-          approachY = targetRect.bottom - H_TOP_EDGE
+          approachX = targetCenterX - petWinW / 2
+          approachY = targetRect.bottom - hTopEdge
           dirY = -1
           break
       }
@@ -247,18 +265,19 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       if (cancelled) return
 
       // 5. Push! Hamster and target window slide together
+      const pushDist = PUSH_DISTANCE * scale
       await animatePushTogether(
         approachX, approachY,
         targetRect.left, targetRect.top,
         dirX, dirY,
-        PUSH_DISTANCE,
+        pushDist,
         PUSH_DURATION,
       )
       if (cancelled) return
 
       // 6. Walk back to original position
-      const afterPushX = approachX + dirX * PUSH_DISTANCE
-      const afterPushY = approachY + dirY * PUSH_DISTANCE
+      const afterPushX = approachX + dirX * pushDist
+      const afterPushY = approachY + dirY * pushDist
       isWalkingBack.value = true
       callbacks.triggerReaction('running', 2000)
 
@@ -304,14 +323,19 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       // Capture the target window HWND
       await invoke('capture_foreground_hwnd').catch(() => {})
 
-      // 1. Remember current position
+      // Get DPI scale factor
+      const scale = await getScaleFactor()
+      const petWinW = PET_WIN_W * scale
+      const hBottomEdge = H_BOTTOM_EDGE * scale
+
+      // 1. Remember current position (physical pixels)
       const startPos = await appWindow.outerPosition()
       const startX = startPos.x
       const startY = startPos.y
 
-      // 2. Calculate center of target window
-      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2) - PET_WIN_W / 2
-      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2) - H_BOTTOM_EDGE + 20
+      // 2. Calculate center of target window (physical pixels)
+      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2) - petWinW / 2
+      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2) - hBottomEdge + 20 * scale
 
       // 3. Walk to center of the video window
       const dx = targetCenterX - startX
