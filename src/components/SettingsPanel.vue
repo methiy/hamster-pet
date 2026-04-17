@@ -8,9 +8,21 @@
         <div class="setting-row">
           <span class="setting-label">🔊 音效</span>
           <label class="toggle">
-            <input type="checkbox" :checked="true" disabled />
-            <span class="toggle-slider toggle-disabled"></span>
+            <input type="checkbox" :checked="!muted" @change="emit('update:muted', !muted)" />
+            <span class="toggle-slider"></span>
           </label>
+        </div>
+
+        <div v-if="!muted" class="setting-row">
+          <span class="setting-label">🔉 音量</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            :value="volume"
+            class="volume-slider"
+            @input="emit('update:volume', Number(($event.target as HTMLInputElement).value))"
+          />
         </div>
 
         <div class="setting-row">
@@ -49,12 +61,16 @@
 defineProps<{
   alwaysOnTop: boolean
   size: string
+  volume: number
+  muted: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
   'update:alwaysOnTop': [value: boolean]
   'update:size': [value: string]
+  'update:volume': [value: number]
+  'update:muted': [value: boolean]
 }>()
 
 const sizeOptions = [
@@ -221,5 +237,26 @@ const sizeOptions = [
 .about-heart {
   font-size: 18px;
   margin-top: 4px;
+}
+
+.volume-slider {
+  width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #ddd;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #F2A65A;
+  cursor: pointer;
 }
 </style>

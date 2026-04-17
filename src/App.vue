@@ -156,9 +156,13 @@
       v-if="showSettings"
       :always-on-top="settings.alwaysOnTop"
       :size="settings.size"
+      :volume="settings.volume ?? 70"
+      :muted="settings.muted ?? false"
       @close="showSettings = false"
       @update:always-on-top="onToggleAlwaysOnTop"
       @update:size="onChangeSize"
+      @update:volume="onChangeVolume"
+      @update:muted="onChangeMuted"
     />
 
     <ToastNotification />
@@ -195,6 +199,7 @@ import { useActivityReaction } from './composables/useActivityReaction'
 import { usePushAnimation } from './composables/usePushAnimation'
 import { useAppMode } from './composables/useAppMode'
 import { useReminder } from './composables/useReminder'
+import { useAudio } from './composables/useAudio'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
@@ -207,7 +212,18 @@ import { foods } from './data/foods'
 const settings = ref<SettingsData>({
   alwaysOnTop: false,
   size: 'medium',
+  volume: 70,
+  muted: false,
 })
+
+// --- Audio ---
+const audioVolume = computed(() => settings.value.volume ?? 70)
+const audioMuted = computed(() => settings.value.muted ?? false)
+const audioVolumeRef = ref(audioVolume.value)
+const audioMutedRef = ref(audioMuted.value)
+watch(audioVolume, v => { audioVolumeRef.value = v })
+watch(audioMuted, v => { audioMutedRef.value = v })
+const { playSound } = useAudio(audioVolumeRef, audioMutedRef)
 
 // --- Core composables ---
 const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction, pauseAutoTransition, resumeAutoTransition } = useHamster()
@@ -484,6 +500,7 @@ function onDoubleClick() {
   }
   closeMenu()
   triggerHappy()
+  playSound('happy')
 }
 
 // --- Interaction ---
@@ -505,6 +522,7 @@ function handleRegionClick(region: BodyRegion) {
   speechVisible.value = true
   const reaction = REACTION_MAP[region]
   triggerReaction(reaction.state, reaction.duration)
+  playSound('click')
 }
 
 function onRegionHover(region: BodyRegion | null) {
@@ -531,6 +549,7 @@ function pickRandom(arr: string[]): string {
 
 async function onGrabStart() {
   isGrabbing.value = true
+  playSound('grab')
 
   // Remember window position at grab start
   try {
@@ -577,6 +596,7 @@ async function onGrabMove(screenX: number, screenY: number) {
 
 async function onGrabEnd() {
   isGrabbing.value = false
+  playSound('drop')
 
   if (grabHoldTimer) {
     clearTimeout(grabHoldTimer)
@@ -671,6 +691,7 @@ function onFeedItem(foodId: string) {
   if (useFood(foodId)) {
     const food = getFoodDetails(foodId)
     feedHamster()
+    playSound('feed')
 
     if (food?.effect === 'happy') {
       setTimeout(() => triggerHappy(), 3000)
@@ -699,6 +720,7 @@ function onBuyFood(foodId: string) {
   }
   if (buyFood(foodId)) {
     showToast({ type: 'success', icon: '🎉', title: `成功购买 ${food.emoji} ${food.name} ×1` })
+    playSound('shop')
   }
 }
 
@@ -810,6 +832,7 @@ function onTypingWordComplete(coinReward: number) {
   coins.value += coinReward
   triggerReaction('happy', 1200)
   showToast({ type: 'success', icon: '🪙', title: `+${coinReward} 金币`, message: '打字完成！' })
+  playSound('coin')
 }
 
 function onTypingStreak(streak: number, coinReward: number) {
@@ -849,6 +872,14 @@ function onChangeSize(value: string) {
       getCurrentWindow().setSize(new LogicalSize(dims[0], dims[1]))
     }).catch(() => { /* Not in Tauri */ })
   }
+}
+
+function onChangeVolume(value: number) {
+  settings.value = { ...settings.value, volume: value }
+}
+
+function onChangeMuted(value: boolean) {
+  settings.value = { ...settings.value, muted: value }
 }
 
 async function onQuit() {
@@ -934,6 +965,7 @@ onMounted(async () => {
     for (const r of due) {
       showSpeechText(`📝 备忘提醒：${r.text}`)
       showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
+      playSound('notification')
     }
   }, 30000)
   if (isOnAdventure.value) {
@@ -957,6 +989,7 @@ onMounted(async () => {
         await win.setFocus()
 
         if (cursor) {
+          playSound('summon')
           // Get DPI scale to compute physical pixel offsets for centering pet on cursor
           let scale = 1.0
           try { scale = await win.scaleFactor() } catch { /* fallback to 1.0 */ }
