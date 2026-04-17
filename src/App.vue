@@ -273,10 +273,10 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
     showSpeech: showSpeechText,
     triggerReaction,
     startPush: (activity: ActivityType) => {
-      startPush(activity, windowInfo.value?.rect ?? null)
+      startPush(activity, windowInfo.value?.rect ?? null, windowInfo.value?.process_name)
     },
     startVideoPause: () => {
-      startVideoPause(windowInfo.value?.rect ?? null)
+      startVideoPause(windowInfo.value?.rect ?? null, windowInfo.value?.process_name)
     },
   },
 )

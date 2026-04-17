@@ -12,6 +12,12 @@ interface WindowRect {
   bottom: number
 }
 
+interface ActiveWindowInfo {
+  title: string
+  process_name: string
+  rect: WindowRect
+}
+
 interface PushCallbacks {
   showSpeech: (text: string) => void
   triggerReaction: (state: HamsterState, duration: number) => void
@@ -50,6 +56,18 @@ async function getScaleFactor(): Promise<number> {
     return await getCurrentWindow().scaleFactor()
   } catch {
     return 1.0
+  }
+}
+
+/** Check if the target window (by process name) is still the active foreground window */
+async function isTargetStillValid(expectedProcess: string): Promise<{ valid: boolean; freshRect?: WindowRect }> {
+  try {
+    const info = await invoke<ActiveWindowInfo | null>('get_active_window')
+    if (!info) return { valid: false }
+    if (info.process_name !== expectedProcess) return { valid: false }
+    return { valid: true, freshRect: info.rect }
+  } catch {
+    return { valid: false }
   }
 }
 
@@ -158,7 +176,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     })
   }
 
-  async function startPush(activity: ActivityType, targetRect: WindowRect | null) {
+  async function startPush(activity: ActivityType, targetRect: WindowRect | null, processName?: string) {
     if (isPushing.value) return
     cancelled = false
 
@@ -177,6 +195,26 @@ export function usePushAnimation(callbacks: PushCallbacks) {
 
     try {
       const appWindow = getCurrentWindow()
+
+      // --- Checkpoint A: validate target window before starting walk ---
+      let currentTargetRect = targetRect
+      if (processName) {
+        const check = await isTargetStillValid(processName)
+        if (!check.valid) {
+          // Target window gone — fall back to simple complaint
+          isPushing.value = false
+          const phrase = ACTIVITY_PHRASES[activity].phrases[
+            Math.floor(Math.random() * ACTIVITY_PHRASES[activity].phrases.length)
+          ]
+          callbacks.showSpeech(phrase)
+          callbacks.triggerReaction(ACTIVITY_PHRASES[activity].reactionState, ACTIVITY_PHRASES[activity].reactionDuration)
+          setTimeout(() => callbacks.onComplete(), ACTIVITY_PHRASES[activity].reactionDuration + 500)
+          return
+        }
+        if (check.freshRect) {
+          currentTargetRect = check.freshRect
+        }
+      }
 
       // Capture the target window's HWND before we start moving
       // (so we move the correct window even after focus changes)
@@ -203,38 +241,38 @@ export function usePushAnimation(callbacks: PushCallbacks) {
 
       // Calculate approach position: pet stands on the OPPOSITE side of push direction
       // and needs to visually touch the window edge
-      // targetRect is in physical pixels (from GetWindowRect), offsets scaled to physical
+      // currentTargetRect is in physical pixels (from GetWindowRect), offsets scaled to physical
       let approachX: number
       let approachY: number
       let dirX = 0
       let dirY = 0
 
-      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2)
-      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2)
+      const targetCenterX = Math.round((currentTargetRect.left + currentTargetRect.right) / 2)
+      const targetCenterY = Math.round((currentTargetRect.top + currentTargetRect.bottom) / 2)
 
       switch (dir) {
         case 'right':
           // Pet stands on the LEFT side of the window, pushes right
-          approachX = targetRect.left - hRightEdge
+          approachX = currentTargetRect.left - hRightEdge
           approachY = targetCenterY - hBottomEdge + 20 * scale
           dirX = 1
           break
         case 'left':
           // Pet stands on the RIGHT side of the window, pushes left
-          approachX = targetRect.right - hLeftEdge
+          approachX = currentTargetRect.right - hLeftEdge
           approachY = targetCenterY - hBottomEdge + 20 * scale
           dirX = -1
           break
         case 'down':
           // Pet stands ABOVE the window, pushes down
           approachX = targetCenterX - petWinW / 2
-          approachY = targetRect.top - hBottomEdge
+          approachY = currentTargetRect.top - hBottomEdge
           dirY = 1
           break
         case 'up':
           // Pet stands BELOW the window, pushes up
           approachX = targetCenterX - petWinW / 2
-          approachY = targetRect.bottom - hTopEdge
+          approachY = currentTargetRect.bottom - hTopEdge
           dirY = -1
           break
       }
@@ -250,6 +288,25 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       callbacks.triggerReaction('running', walkDuration + 1000)
       await animateHamsterMove(startX, startY, approachX, approachY, walkDuration)
       if (cancelled) return
+
+      // --- Checkpoint B: validate target window after walk, before push ---
+      if (processName) {
+        const check = await isTargetStillValid(processName)
+        if (!check.valid) {
+          // Target window gone — skip push, walk back to original position
+          isWalking.value = false
+          isWalkingBack.value = true
+          callbacks.triggerReaction('running', 2000)
+          const returnDist = Math.sqrt((startX - approachX) ** 2 + (startY - approachY) ** 2)
+          const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
+          await animateHamsterMove(approachX, approachY, startX, startY, returnDuration)
+          isWalkingBack.value = false
+          return
+        }
+        if (check.freshRect) {
+          currentTargetRect = check.freshRect
+        }
+      }
 
       // 4. Arrive — show push phrase
       isWalking.value = false
@@ -268,7 +325,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const pushDist = PUSH_DISTANCE * scale
       await animatePushTogether(
         approachX, approachY,
-        targetRect.left, targetRect.top,
+        currentTargetRect.left, currentTargetRect.top,
         dirX, dirY,
         pushDist,
         PUSH_DURATION,
@@ -302,7 +359,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
    * Video pause sequence: pet walks to the center of the video window,
    * says a phrase, sends space to pause the video, then walks back.
    */
-  async function startVideoPause(targetRect: WindowRect | null) {
+  async function startVideoPause(targetRect: WindowRect | null, processName?: string) {
     if (isPushing.value) return
     cancelled = false
 
@@ -320,6 +377,24 @@ export function usePushAnimation(callbacks: PushCallbacks) {
     try {
       const appWindow = getCurrentWindow()
 
+      // --- Checkpoint A: validate target window before starting walk ---
+      let currentTargetRect = targetRect
+      if (processName) {
+        const check = await isTargetStillValid(processName)
+        if (!check.valid) {
+          // Target window gone — fall back to simple phrase
+          isPushing.value = false
+          const phrase = VIDEO_PAUSE_PHRASES[Math.floor(Math.random() * VIDEO_PAUSE_PHRASES.length)]
+          callbacks.showSpeech(phrase)
+          callbacks.triggerReaction('happy', 2000)
+          setTimeout(() => callbacks.onComplete(), 2500)
+          return
+        }
+        if (check.freshRect) {
+          currentTargetRect = check.freshRect
+        }
+      }
+
       // Capture the target window HWND
       await invoke('capture_foreground_hwnd').catch(() => {})
 
@@ -334,8 +409,8 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const startY = startPos.y
 
       // 2. Calculate center of target window (physical pixels)
-      const targetCenterX = Math.round((targetRect.left + targetRect.right) / 2) - petWinW / 2
-      const targetCenterY = Math.round((targetRect.top + targetRect.bottom) / 2) - hBottomEdge + 20 * scale
+      const targetCenterX = Math.round((currentTargetRect.left + currentTargetRect.right) / 2) - petWinW / 2
+      const targetCenterY = Math.round((currentTargetRect.top + currentTargetRect.bottom) / 2) - hBottomEdge + 20 * scale
 
       // 3. Walk to center of the video window
       const dx = targetCenterX - startX
@@ -348,6 +423,22 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       callbacks.triggerReaction('running', walkDuration + 1000)
       await animateHamsterMove(startX, startY, targetCenterX, targetCenterY, walkDuration)
       if (cancelled) return
+
+      // --- Checkpoint B: validate target window after walk, before sending space ---
+      if (processName) {
+        const check = await isTargetStillValid(processName)
+        if (!check.valid) {
+          // Target window gone — skip space key, walk back
+          isWalking.value = false
+          isWalkingBack.value = true
+          callbacks.triggerReaction('running', 2000)
+          const returnDist = Math.sqrt((startX - targetCenterX) ** 2 + (startY - targetCenterY) ** 2)
+          const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
+          await animateHamsterMove(targetCenterX, targetCenterY, startX, startY, returnDuration)
+          isWalkingBack.value = false
+          return
+        }
+      }
 
       // 4. Arrive — show video pause phrase
       isWalking.value = false
