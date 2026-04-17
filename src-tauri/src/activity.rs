@@ -24,6 +24,12 @@ pub struct IdleInfo {
     pub idle_seconds: u32,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct CursorPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
 #[cfg(target_os = "windows")]
 pub mod platform {
     use super::*;
@@ -32,7 +38,9 @@ pub mod platform {
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
         GetWindowRect as WinGetWindowRect,
         SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
+        GetCursorPos,
     };
+    use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetLastInputInfo, LASTINPUTINFO,
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY,
@@ -217,6 +225,17 @@ pub mod platform {
             }
         }
     }
+
+    pub fn get_cursor_position() -> Option<CursorPosition> {
+        unsafe {
+            let mut point = POINT::default();
+            if GetCursorPos(&mut point).is_ok() {
+                Some(CursorPosition { x: point.x, y: point.y })
+            } else {
+                None
+            }
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -246,4 +265,7 @@ pub mod platform {
     pub fn send_space_to_captured_window() -> bool {
         false
     }
-}
+
+    pub fn get_cursor_position() -> Option<CursorPosition> {
+        None
+    }

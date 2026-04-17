@@ -18,6 +18,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-set-resizable",
     "core:event:default",
-    "core:event:allow-listen"
+    "core:event:allow-listen",
+    "global-shortcut:default"
   ]
 }

@@ -148,3 +148,11 @@ export const VIDEO_PAUSE_PHRASES: string[] = [
   '我帮你按了暂停哦~陪我玩嘛',
   '不许看了！我按暂停了！',
 ]
+
+/** Phrases when the pet is summoned via shortcut or tray menu */
+export const SUMMON_PHRASES: string[] = [
+  '主人叫我啦~来了来了！',
+  '我在这里！想我了吗？',
+  '嗖~我飞过来啦！',
+  '主人找我有什么事呀？',
+]

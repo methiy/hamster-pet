@@ -158,6 +158,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import { LogicalPosition, LogicalSize } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
@@ -184,6 +186,7 @@ import { useAppMode } from './composables/useAppMode'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
+import { SUMMON_PHRASES } from './data/activityPhrases'
 import { decorations } from './data/decorations'
 import { furniture } from './data/furniture'
 import { foods } from './data/foods'
@@ -742,6 +745,7 @@ watch(mode, (newMode) => {
 
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
+let unlistenSummon: (() => void) | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -783,7 +787,7 @@ function pollAdventure() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   const { offlineMinutes, offlineCoins } = load()
 
   if (settings.value.alwaysOnTop) {
@@ -802,6 +806,25 @@ onMounted(() => {
   if (isOnAdventure.value) {
     setState('adventure_out')
   }
+
+  // Listen for summon-pet event (from tray menu or global shortcut)
+  try {
+    unlistenSummon = await listen('summon-pet', async () => {
+      try {
+        const win = getCurrentWindow()
+        const cursor = await invoke<{ x: number; y: number } | null>('get_cursor_position')
+        if (cursor) {
+          await win.setPosition(new LogicalPosition(cursor.x - 125, cursor.y - 150))
+        }
+        await win.show()
+        await win.setFocus()
+      } catch { /* Not in Tauri */ }
+      // Show happy reaction + summon phrase
+      triggerReaction('happy', 2000)
+      speechText.value = pickRandom(SUMMON_PHRASES)
+      speechVisible.value = true
+    })
+  } catch { /* Not in Tauri */ }
 })
 
 onUnmounted(() => {
@@ -813,6 +836,7 @@ onUnmounted(() => {
   cancelAnimation()
   if (adventureTimer) clearInterval(adventureTimer)
   if (clickTimer) clearTimeout(clickTimer)
+  if (unlistenSummon) unlistenSummon()
 })
 </script>
 
