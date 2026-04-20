@@ -15,6 +15,7 @@
     "core:window:allow-unminimize",
     "shell:allow-open",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-set-ignore-cursor-events",
     "core:window:allow-set-skip-taskbar",
     "core:window:allow-show",
     "core:window:allow-hide",
