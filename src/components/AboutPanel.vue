@@ -11,20 +11,25 @@
       <button
         class="update-btn"
         :class="updateStatus"
-        :disabled="updateStatus === 'checking'"
-        @click="checkUpdate"
+        :disabled="updateStatus === 'checking' || updateStatus === 'downloading' || updateStatus === 'installing'"
+        @click="handleUpdateClick"
       >
         <span v-if="updateStatus === 'idle'">🔍 检查更新</span>
         <span v-else-if="updateStatus === 'checking'">⏳ 检查中...</span>
         <span v-else-if="updateStatus === 'up-to-date'">✅ 已是最新版本</span>
-        <span v-else-if="updateStatus === 'update-available'">🎉 发现新版本</span>
-        <span v-else-if="updateStatus === 'error'">❌ 检查失败，点击重试</span>
+        <span v-else-if="updateStatus === 'update-available'">🎉 发现新版本 v{{ latestVersion }}</span>
+        <span v-else-if="updateStatus === 'downloading'">⬇️ 下载中 {{ downloadProgress }}%</span>
+        <span v-else-if="updateStatus === 'installing'">📦 安装中...</span>
+        <span v-else-if="updateStatus === 'error'">❌ {{ errorMsg }}，点击重试</span>
       </button>
 
-      <div v-if="updateStatus === 'update-available' && latestVersion" class="update-info">
-        <div class="new-version">新版本: v{{ latestVersion }}</div>
+      <div v-if="updateStatus === 'update-available'" class="update-info">
         <div v-if="releaseNotes" class="release-notes">{{ releaseNotes }}</div>
-        <button class="download-btn" @click="openDownload">📥 前往下载</button>
+        <button class="download-btn" @click="startUpdate">📥 立即更新</button>
+      </div>
+
+      <div v-if="updateStatus === 'downloading'" class="progress-bar-container">
+        <div class="progress-bar" :style="{ width: downloadProgress + '%' }"></div>
       </div>
     </div>
 
@@ -62,59 +67,84 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { Update } from '@tauri-apps/plugin-updater'
 
 declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__
 
-type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'update-available' | 'error'
+type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'update-available' | 'downloading' | 'installing' | 'error'
 const updateStatus = ref<UpdateStatus>('idle')
 const latestVersion = ref('')
 const releaseNotes = ref('')
-const releaseUrl = ref('')
+const downloadProgress = ref(0)
+const errorMsg = ref('检查失败')
 
-function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] || 0) - (pb[i] || 0)
-    if (diff !== 0) return diff
+let pendingUpdate: Update | null = null
+
+async function handleUpdateClick() {
+  if (updateStatus.value === 'error' || updateStatus.value === 'idle' || updateStatus.value === 'up-to-date') {
+    await checkUpdate()
   }
-  return 0
 }
 
 async function checkUpdate() {
   if (updateStatus.value === 'checking') return
   updateStatus.value = 'checking'
+  pendingUpdate = null
 
   try {
-    const resp = await fetch('https://api.github.com/repos/methiy/hamster-pet/releases/latest')
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const data = await resp.json()
+    const { check } = await import('@tauri-apps/plugin-updater')
+    const update = await check()
 
-    const tag = data.tag_name as string
-    latestVersion.value = tag.replace(/^v/, '')
-    releaseUrl.value = data.html_url as string
-
-    // Extract first 100 chars of body as summary
-    const body = (data.body as string) ?? ''
-    releaseNotes.value = body.length > 100 ? body.slice(0, 100) + '...' : body
-
-    if (compareSemver(tag, appVersion) > 0) {
+    if (update) {
+      latestVersion.value = update.version
+      releaseNotes.value = update.body ? (update.body.length > 200 ? update.body.slice(0, 200) + '...' : update.body) : ''
+      pendingUpdate = update
       updateStatus.value = 'update-available'
     } else {
       updateStatus.value = 'up-to-date'
     }
-  } catch {
+  } catch (e: any) {
+    errorMsg.value = '检查失败'
     updateStatus.value = 'error'
+    console.error('Update check failed:', e)
   }
 }
 
-async function openDownload() {
+async function startUpdate() {
+  if (!pendingUpdate) return
+
+  updateStatus.value = 'downloading'
+  downloadProgress.value = 0
+
   try {
-    const { open } = await import('@tauri-apps/plugin-shell')
-    await open(releaseUrl.value || 'https://github.com/methiy/hamster-pet/releases/latest')
-  } catch {
-    window.open(releaseUrl.value || 'https://github.com/methiy/hamster-pet/releases/latest', '_blank')
+    let contentLength = 0
+    let downloaded = 0
+
+    await pendingUpdate.downloadAndInstall((event) => {
+      switch (event.event) {
+        case 'Started':
+          contentLength = event.data.contentLength ?? 0
+          break
+        case 'Progress':
+          downloaded += event.data.chunkLength
+          if (contentLength > 0) {
+            downloadProgress.value = Math.round((downloaded / contentLength) * 100)
+          }
+          break
+        case 'Finished':
+          updateStatus.value = 'installing'
+          break
+      }
+    })
+
+    // Relaunch the app after install
+    const { relaunch } = await import('@tauri-apps/plugin-process')
+    await relaunch()
+  } catch (e: any) {
+    errorMsg.value = '更新失败'
+    updateStatus.value = 'error'
+    console.error('Update failed:', e)
   }
 }
 
@@ -208,6 +238,18 @@ async function openGitHub() {
   font-weight: 600;
 }
 
+.update-btn.downloading {
+  border-color: #42A5F5;
+  color: #42A5F5;
+  font-weight: 600;
+}
+
+.update-btn.installing {
+  border-color: #AB47BC;
+  color: #AB47BC;
+  font-weight: 600;
+}
+
 .update-btn.error {
   border-color: #E57373;
   color: #E57373;
@@ -219,12 +261,6 @@ async function openGitHub() {
   background: rgba(242, 166, 90, 0.08);
   border-radius: 8px;
   text-align: left;
-}
-
-.new-version {
-  font-weight: 600;
-  color: #F2A65A;
-  margin-bottom: 6px;
 }
 
 .release-notes {
@@ -252,6 +288,21 @@ async function openGitHub() {
 
 .download-btn:hover {
   background: #E09040;
+}
+
+.progress-bar-container {
+  margin-top: 8px;
+  height: 6px;
+  background: rgba(66, 165, 245, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #42A5F5;
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 .link-section {
