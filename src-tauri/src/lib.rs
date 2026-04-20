@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri::Emitter;
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 
 mod activity;
 mod tray;
@@ -74,6 +75,26 @@ fn set_window_bounds(window: tauri::Window, x: i32, y: i32, width: i32, height: 
     }
 }
 
+#[tauri::command]
+fn show_context_menu(window: tauri::Window) {
+    let app = window.app_handle();
+    let menu = MenuBuilder::new(app)
+        .item(&MenuItemBuilder::with_id("ctx_feed", "🍽️ 喂食").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_shop", "🏪 商店").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_postcard", "📮 明信片").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_souvenir", "🎁 纪念品").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_wardrobe", "👗 衣柜").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_reminder", "📝 备忘").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_status", "📊 状态").build(app).unwrap())
+        .item(&PredefinedMenuItem::separator(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_pomodoro", "🍅 番茄钟").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_settings", "⚙️ 设置").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_quit", "❌ 退出").build(app).unwrap())
+        .build()
+        .unwrap();
+    let _ = window.popup_menu(&menu);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -83,7 +104,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
@@ -121,6 +142,25 @@ pub fn run() {
                     let _ = handle4.emit("tray-action", "pomodoro");
                 }
             })?;
+
+            // Handle context menu item clicks
+            let menu_handle = app.handle().clone();
+            app.on_menu_event(move |_app, event| {
+                let id = event.id().as_ref();
+                match id {
+                    "ctx_feed" => { let _ = menu_handle.emit("tray-action", "feed"); }
+                    "ctx_shop" => { let _ = menu_handle.emit("tray-action", "shop"); }
+                    "ctx_postcard" => { let _ = menu_handle.emit("tray-action", "postcard"); }
+                    "ctx_souvenir" => { let _ = menu_handle.emit("tray-action", "souvenir"); }
+                    "ctx_wardrobe" => { let _ = menu_handle.emit("tray-action", "wardrobe"); }
+                    "ctx_reminder" => { let _ = menu_handle.emit("tray-action", "reminder"); }
+                    "ctx_status" => { let _ = menu_handle.emit("tray-action", "status"); }
+                    "ctx_pomodoro" => { let _ = menu_handle.emit("tray-action", "pomodoro"); }
+                    "ctx_settings" => { let _ = menu_handle.emit("tray-action", "settings"); }
+                    "ctx_quit" => { let _ = menu_handle.emit("tray-action", "quit"); }
+                    _ => {}
+                }
+            });
 
             Ok(())
         })

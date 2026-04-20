@@ -82,24 +82,6 @@
       :emoji="weatherEmoji"
     />
 
-    <ContextMenu
-      :visible="menuVisible"
-      :x="menuX"
-      :y="menuY"
-      @feed="onFeed"
-      @shop="onShop"
-      @postcard="onPostcard"
-      @souvenir="onSouvenir"
-      @wardrobe="onWardrobe"
-      @reminder="onReminder"
-      @status="onStatus"
-      @typing="onTypingMode"
-      @pomodoro="onPomodoro"
-      @settings="onSettings"
-      @quit="onQuit"
-      @close="closeMenu"
-    />
-
     <StatusNote
       v-if="isOnAdventure && adventureLocation && adventureEndTime"
       :location-emoji="adventureLocation.emoji"
@@ -220,7 +202,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
-import ContextMenu from './components/ContextMenu.vue'
 import StatusNote from './components/StatusNote.vue'
 import ShopWindow from './components/ShopWindow.vue'
 import FeedMenu from './components/FeedMenu.vue'
@@ -439,11 +420,6 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
   },
 )
 
-// --- Context menu ---
-const menuVisible = ref(false)
-const menuX = ref(0)
-const menuY = ref(0)
-
 // --- Popup states ---
 const showShop = ref(false)
 const showFeed = ref(false)
@@ -477,7 +453,7 @@ const petSizeMap: Record<string, [number, number]> = {
 const EXPANDED_WIN_SIZE = { w: 600, h: 600 }
 
 const needsExpandedWindow = computed(() =>
-  menuVisible.value || anyPopupOpen.value
+  anyPopupOpen.value
 )
 
 watch(needsExpandedWindow, async (expanded) => {
@@ -588,28 +564,17 @@ const visibleFurniture = computed(() => {
 // --- Drag ---
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
-  if (menuVisible.value || anyPopupOpen.value) return
+  if (anyPopupOpen.value) return
   try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
 }
 
 function onMissClick(_e: MouseEvent) {
-  if (menuVisible.value || anyPopupOpen.value) return
+  if (anyPopupOpen.value) return
   try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
 }
 
-function onRightClick(e: MouseEvent) {
-  // Compute the offset that will be applied when the window expands for the menu
-  const petDims = petSizeMap[settings.value.size] ?? [240, 260]
-  const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2)
-  const offsetY = EXPANDED_WIN_SIZE.h - petDims[1]
-  // Adjust click position to account for the window expansion shift
-  menuX.value = e.clientX + offsetX
-  menuY.value = e.clientY + offsetY
-  menuVisible.value = true
-}
-
-function closeMenu() {
-  menuVisible.value = false
+function onRightClick(_e: MouseEvent) {
+  invoke('show_context_menu')
 }
 
 function onDoubleClick() {
@@ -618,7 +583,6 @@ function onDoubleClick() {
     clickTimer = null
     pendingRegion = null
   }
-  closeMenu()
   triggerHappy()
   playSound('happy')
 }
@@ -835,11 +799,6 @@ async function onGrabEnd() {
 }
 
 // --- Menu actions ---
-function onFeed() {
-  closeMenu()
-  showFeed.value = true
-}
-
 function onFeedItem(foodId: string) {
   if (useFood(foodId)) {
     const food = getFoodDetails(foodId)
@@ -858,11 +817,6 @@ function onFeedItem(foodId: string) {
     }
   }
   showFeed.value = false
-}
-
-function onShop() {
-  closeMenu()
-  showShop.value = true
 }
 
 function onBuyFood(foodId: string) {
@@ -932,26 +886,6 @@ function onToggleEquip(decoId: string) {
   toggleEquipDecoration(decoId)
 }
 
-function onPostcard() {
-  closeMenu()
-  showPostcards.value = true
-}
-
-function onSouvenir() {
-  closeMenu()
-  showSouvenirs.value = true
-}
-
-function onWardrobe() {
-  closeMenu()
-  showWardrobe.value = true
-}
-
-function onReminder() {
-  closeMenu()
-  showReminder.value = true
-}
-
 function onAddReminder(text: string, opts: {
   type: 'once'
   datetime: number | null
@@ -970,16 +904,6 @@ function onRemoveReminder(id: string) {
   removeReminder(id)
 }
 
-function onStatus() {
-  closeMenu()
-  showStatus.value = true
-}
-
-function onPomodoro() {
-  closeMenu()
-  showPomodoro.value = true
-}
-
 function onPomodoroStart() {
   pomodoroStartWork()
   showPomodoro.value = false
@@ -989,13 +913,6 @@ function onPomodoroStart() {
 function onPomodoroCancel() {
   pomodoroCancel()
   showToast({ type: 'info', icon: '🍅', title: '番茄钟已取消' })
-}
-
-function onTypingMode() {
-  closeMenu()
-  setMode('work')
-  pauseAutoTransition()
-  setState('typing')
 }
 
 function exitWorkMode() {
@@ -1032,11 +949,6 @@ function onTypingIdle() {
 function onTypingSpeech(text: string) {
   speechText.value = text
   speechVisible.value = true
-}
-
-function onSettings() {
-  closeMenu()
-  showSettings.value = true
 }
 
 function onToggleAlwaysOnTop(value: boolean) {
@@ -1088,12 +1000,6 @@ async function onToggleAutoStart(value: boolean) {
     if (value) await enable()
     else await disable()
   } catch { /* Not in Tauri or plugin not available */ }
-}
-
-async function onQuit() {
-  closeMenu()
-  save()
-  try { await getCurrentWindow().close() } catch { window.close() }
 }
 
 // --- Mode change watcher ---
@@ -1281,6 +1187,15 @@ onMounted(async () => {
         case 'shop':
           showShop.value = true
           break
+        case 'postcard':
+          showPostcards.value = true
+          break
+        case 'souvenir':
+          showSouvenirs.value = true
+          break
+        case 'wardrobe':
+          showWardrobe.value = true
+          break
         case 'reminder':
           showReminder.value = true
           break
@@ -1295,6 +1210,10 @@ onMounted(async () => {
           break
         case 'toggle-passthrough':
           onTogglePassThrough(!(settings.value.passThrough ?? false))
+          break
+        case 'quit':
+          save()
+          try { getCurrentWindow().close() } catch { window.close() }
           break
       }
     })
