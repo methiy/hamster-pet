@@ -48,7 +48,7 @@ watch(() => props.visible, (v) => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
   pointer-events: none;
-  z-index: 100;
+  z-index: 9999;
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
 }
 
