@@ -1,20 +1,17 @@
 <template>
   <div
     class="app-container"
-    :class="{ 'work-mode': isWorkMode }"
     @mousedown="onMouseDown"
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
-    <!-- Normal mode: full pet view -->
     <SpeechBubble
-      v-if="!isWorkMode"
       :text="speechText"
       :visible="speechVisible"
       @hide="speechVisible = false"
     />
 
-    <div v-if="!isWorkMode" class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
+    <div class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
       <div class="decoration-layer">
         <img
           v-for="deco in visibleDecorations"
@@ -44,37 +41,6 @@
         @grab-move="onGrabMove"
         @grab-end="onGrabEnd"
       />
-    </div>
-
-    <!-- Work mode: side-by-side layout -->
-    <div v-if="isWorkMode" class="work-layout">
-      <div class="work-hamster-area">
-        <SpeechBubble
-          :text="speechText"
-          :visible="speechVisible"
-          @hide="speechVisible = false"
-        />
-        <HamsterSprite
-          :state="displayState"
-          @region-click="onRegionClick"
-          @region-hover="onRegionHover"
-          @miss-click="onMissClick"
-          @grab-start="onGrabStart"
-          @grab-move="onGrabMove"
-          @grab-end="onGrabEnd"
-        />
-      </div>
-      <div class="work-game-area">
-        <TypingGame
-          @close="exitWorkMode"
-          @correct="onTypingCorrect"
-          @mistake="onTypingMistake"
-          @word-complete="onTypingWordComplete"
-          @streak="onTypingStreak"
-          @idle="onTypingIdle"
-          @speech="onTypingSpeech"
-        />
-      </div>
     </div>
 
     <WeatherWidget
@@ -110,7 +76,6 @@ import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import StatusNote from './components/StatusNote.vue'
 import ToastNotification from './components/ToastNotification.vue'
-import TypingGame from './components/TypingGame.vue'
 import PomodoroNote from './components/PomodoroNote.vue'
 import WeatherWidget from './components/WeatherWidget.vue'
 import { useHamster } from './composables/useHamster'
@@ -122,7 +87,6 @@ import { useToast } from './composables/useToast'
 import { useActivitySensor } from './composables/useActivitySensor'
 import { useActivityReaction } from './composables/useActivityReaction'
 import { usePushAnimation } from './composables/usePushAnimation'
-import { useAppMode } from './composables/useAppMode'
 import { useReminder } from './composables/useReminder'
 import { useAudio } from './composables/useAudio'
 import { useStatus } from './composables/useStatus'
@@ -157,10 +121,8 @@ watch(audioMuted, v => { audioMutedRef.value = v })
 const { playSound } = useAudio(audioVolumeRef, audioMutedRef)
 
 // --- Core composables ---
-const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction, pauseAutoTransition, resumeAutoTransition } = useHamster()
+const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
 const { showToast } = useToast()
-const { mode, setMode, initModeListener, destroyModeListener } = useAppMode()
-const isWorkMode = computed(() => mode.value === 'work')
 
 const {
   reminders,
@@ -838,42 +800,6 @@ function onPomodoroCancel() {
   showToast({ type: 'info', icon: '🍅', title: '番茄钟已取消' })
 }
 
-function exitWorkMode() {
-  setMode('normal')
-  resumeAutoTransition()
-  triggerHappy()
-}
-
-function onTypingCorrect() {
-  triggerReaction('running', 800)
-}
-
-function onTypingMistake() {
-  triggerReaction('hiding', 800)
-}
-
-function onTypingWordComplete(coinReward: number) {
-  coins.value += coinReward
-  triggerReaction('happy', 1200)
-  showToast({ type: 'success', icon: '🪙', title: `+${coinReward} 金币`, message: '打字完成！' })
-  playSound('coin')
-  recordCoinsEarned(coinReward)
-}
-
-function onTypingStreak(streak: number, coinReward: number) {
-  coins.value += coinReward
-  showToast({ type: 'reward', icon: '🔥', title: `${streak} 连击！`, message: `+${coinReward} 金币奖励` })
-}
-
-function onTypingIdle() {
-  triggerReaction('sleeping', 2000)
-}
-
-function onTypingSpeech(text: string) {
-  speechText.value = text
-  speechVisible.value = true
-}
-
 function onToggleAlwaysOnTop(value: boolean) {
   settings.value = { ...settings.value, alwaysOnTop: value }
   try { getCurrentWindow().setAlwaysOnTop(value) } catch { /* Not in Tauri */ }
@@ -924,17 +850,6 @@ async function onToggleAutoStart(value: boolean) {
     else await disable()
   } catch { /* Not in Tauri or plugin not available */ }
 }
-
-// --- Mode change watcher ---
-watch(mode, (newMode) => {
-  if (newMode === 'work') {
-    pauseAutoTransition()
-    setState('typing')
-  } else {
-    resumeAutoTransition()
-    triggerHappy()
-  }
-})
 
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
@@ -1013,7 +928,6 @@ onMounted(async () => {
   startAutoSave()
   startPeriodicCheck()
   startDecay()
-  initModeListener()
 
   // Start weather auto-fetch
   startAutoFetch(() => settings.value.weatherCity ?? '')
@@ -1146,7 +1060,6 @@ onUnmounted(() => {
   stopAutoSave()
   stopPeriodicCheck()
   stopDecay()
-  destroyModeListener()
   cancelAnimation()
   pomodoroDestroy()
   stopAutoFetch()
@@ -1175,17 +1088,6 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 
-.app-container.work-mode {
-  background: rgba(255, 248, 240, 0.95);
-  border-radius: 12px;
-  cursor: default;
-  overflow: hidden;
-}
-
-.app-container.work-mode:active {
-  cursor: default;
-}
-
 .hamster-area {
   position: absolute;
   bottom: 10px;
@@ -1193,31 +1095,6 @@ onUnmounted(() => {
   transform: translateX(-50%);
   width: 120px;
   height: 120px;
-}
-
-/* Work mode layout */
-.work-layout {
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
-
-.work-hamster-area {
-  width: 140px;
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 252, 245, 0.5);
-}
-
-.work-game-area {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
 }
 
 .decoration-layer {

@@ -6,8 +6,6 @@ use tauri::{
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let summon = MenuItemBuilder::with_id("summon", "📍 召唤宠物  Ctrl+Shift+P").build(app)?;
-    let pet_mode = MenuItemBuilder::with_id("pet_mode", "🐹 宠物模式").build(app)?;
-    let work_mode = MenuItemBuilder::with_id("work_mode", "⌨️ 打字模式").build(app)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let feed = MenuItemBuilder::with_id("feed", "🍽️ 喂食  Ctrl+Shift+F").build(app)?;
     let shop = MenuItemBuilder::with_id("shop", "🏪 商店").build(app)?;
@@ -21,8 +19,6 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let menu = MenuBuilder::new(app)
         .item(&summon)
-        .item(&pet_mode)
-        .item(&work_mode)
         .item(&sep1)
         .item(&feed)
         .item(&shop)
@@ -47,12 +43,6 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             match event.id().as_ref() {
                 "summon" => {
                     let _ = app.emit("summon-pet", ());
-                }
-                "pet_mode" => {
-                    let _ = app.emit("mode-change", "normal");
-                }
-                "work_mode" => {
-                    let _ = app.emit("mode-change", "work");
                 }
                 "feed" => {
                     let _ = app.emit("tray-action", "feed");
