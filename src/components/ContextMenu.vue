@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="context-overlay" @click="emit('close')" @contextmenu.prevent="emit('close')">
-      <div class="context-menu" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
+      <div ref="menuRef" class="context-menu" :style="menuStyle" @click.stop>
         <div class="menu-item" @click="emit('feed')">🍽️ 喂食</div>
         <div class="menu-item" @click="emit('shop')">🏪 商店</div>
         <div class="menu-item" @click="emit('postcard')">📮 明信片</div>
@@ -20,7 +20,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { ref, computed, watch, nextTick } from 'vue'
+
+const props = defineProps<{
   visible: boolean
   x: number
   y: number
@@ -40,6 +42,38 @@ const emit = defineEmits<{
   quit: []
   close: []
 }>()
+
+const menuRef = ref<HTMLElement | null>(null)
+const adjustedX = ref(0)
+const adjustedY = ref(0)
+
+watch(() => props.visible, async (vis) => {
+  if (!vis) return
+  // Start at requested position
+  adjustedX.value = props.x
+  adjustedY.value = props.y
+  // Wait for DOM render then clamp within viewport
+  await nextTick()
+  const el = menuRef.value
+  if (!el) return
+  const menuW = el.offsetWidth
+  const menuH = el.offsetHeight
+  const winW = window.innerWidth
+  const winH = window.innerHeight
+  // Clamp horizontally: keep menu within viewport
+  if (props.x + menuW > winW) {
+    adjustedX.value = Math.max(0, winW - menuW)
+  }
+  // Clamp vertically: shift start position up so full menu stays visible, still expands downward
+  if (props.y + menuH > winH) {
+    adjustedY.value = Math.max(0, winH - menuH)
+  }
+})
+
+const menuStyle = computed(() => ({
+  left: adjustedX.value + 'px',
+  top: adjustedY.value + 'px',
+}))
 </script>
 
 <style scoped>
