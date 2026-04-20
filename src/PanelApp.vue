@@ -7,6 +7,7 @@
       @buy-food="emitAction('buyFood', $event)"
       @buy-decoration="emitAction('buyDecoration', $event)"
       @buy-furniture="emitAction('buyFurniture', $event)"
+      @toggle-furniture="emitAction('toggleFurniture', $event)"
       @buy-gear="emitAction('buyGear', $event)"
       @feed="emitAction('feed', $event)"
       @toggle-equip="emitAction('toggleEquip', $event)"

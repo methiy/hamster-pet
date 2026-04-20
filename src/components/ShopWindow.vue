@@ -52,7 +52,7 @@
         </div>
 
         <div v-if="activeTab === 'furniture'" class="items-grid">
-          <div v-for="furn in furnitureItems" :key="furn.id" class="item-card">
+          <div v-for="furn in furnitureItems" :key="furn.id" class="item-card" :class="{ enabled: enabledFurniture.includes(furn.id) }">
             <img class="item-icon" :src="furn.icon" :alt="furn.name" />
             <span class="item-name">{{ furn.name }}</span>
             <span class="item-price">🪙 {{ furn.price }}</span>
@@ -67,7 +67,14 @@
             >
               购买
             </button>
-            <span v-else class="owned-badge">已拥有 ✓</span>
+            <button
+              v-else
+              class="toggle-btn"
+              :class="{ active: enabledFurniture.includes(furn.id) }"
+              @click="emit('toggleFurniture', furn.id)"
+            >
+              {{ enabledFurniture.includes(furn.id) ? '✓ 使用中' : '未启用' }}
+            </button>
           </div>
         </div>
 
@@ -109,6 +116,7 @@ const props = defineProps<{
   hasTelescope: boolean
   ownedDecorations: string[]
   ownedFurniture: string[]
+  enabledFurniture: string[]
 }>()
 
 const emit = defineEmits<{
@@ -117,6 +125,7 @@ const emit = defineEmits<{
   buyDecoration: [decoId: string]
   buyFurniture: [furnId: string]
   buyGear: [gearId: string]
+  toggleFurniture: [furnId: string]
 }>()
 
 const activeTab = ref<'food' | 'decoration' | 'furniture' | 'gear'>('food')
@@ -282,5 +291,34 @@ function getFurnitureBuffText(furn: Furniture): string {
   font-size: 12px;
   color: #6ab04c;
   font-weight: 600;
+}
+
+.toggle-btn {
+  margin-top: 4px;
+  padding: 4px 12px;
+  border: 1px solid rgba(92, 64, 51, 0.2);
+  border-radius: 6px;
+  background: white;
+  color: #A08060;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-btn.active {
+  background: #6ab04c;
+  color: white;
+  border-color: #6ab04c;
+}
+
+.toggle-btn:hover:not(.active) {
+  border-color: #F2A65A;
+  color: #F2A65A;
+}
+
+.item-card.enabled {
+  border: 2px solid #6ab04c;
+  background: rgba(106, 176, 76, 0.05);
 }
 </style>

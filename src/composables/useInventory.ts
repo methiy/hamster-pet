@@ -14,6 +14,7 @@ export function useInventory() {
   const ownedDecorations = ref<string[]>([])
   const equippedDecorations = ref<string[]>([])
   const ownedFurniture = ref<string[]>([])
+  const enabledFurniture = ref<string[]>([])
 
   function buyFood(foodId: string): boolean {
     const food = foods.find(f => f.id === foodId)
@@ -87,6 +88,18 @@ export function useInventory() {
 
     coins.value -= furn.price
     ownedFurniture.value.push(furnId)
+    enabledFurniture.value.push(furnId) // Auto-enable on purchase
+    return true
+  }
+
+  function toggleEnableFurniture(furnId: string): boolean {
+    if (!ownedFurniture.value.includes(furnId)) return false
+    const idx = enabledFurniture.value.indexOf(furnId)
+    if (idx !== -1) {
+      enabledFurniture.value.splice(idx, 1)
+    } else {
+      enabledFurniture.value.push(furnId)
+    }
     return true
   }
 
@@ -112,6 +125,7 @@ export function useInventory() {
     ownedDecorations,
     equippedDecorations,
     ownedFurniture,
+    enabledFurniture,
     totalFoodCount,
     buyFood,
     useFood,
@@ -119,6 +133,7 @@ export function useInventory() {
     buyDecoration,
     toggleEquipDecoration,
     buyFurniture,
+    toggleEnableFurniture,
     startCoinTimer,
     stopCoinTimer,
   }

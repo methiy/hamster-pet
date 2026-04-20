@@ -26,6 +26,7 @@ interface SaveData {
   ownedDecorations?: string[]
   equippedDecorations?: string[]
   ownedFurniture?: string[]
+  enabledFurniture?: string[]
   adventure?: {
     isOnAdventure: boolean
     locationId: string | null
@@ -74,6 +75,7 @@ export function useSave(
     ownedDecorations: Ref<string[]>
     equippedDecorations: Ref<string[]>
     ownedFurniture: Ref<string[]>
+    enabledFurniture: Ref<string[]>
     settings: Ref<SettingsData>
     offlineCoinCap: Ref<number>
   },
@@ -102,6 +104,7 @@ export function useSave(
       data.ownedDecorations = extras.ownedDecorations.value
       data.equippedDecorations = extras.equippedDecorations.value
       data.ownedFurniture = extras.ownedFurniture.value
+      data.enabledFurniture = extras.enabledFurniture.value
     }
     if (extraFns?.getReminders) {
       data.reminders = extraFns.getReminders()
@@ -134,6 +137,8 @@ export function useSave(
         extras.ownedDecorations.value = data.ownedDecorations ?? []
         extras.equippedDecorations.value = data.equippedDecorations ?? []
         extras.ownedFurniture.value = data.ownedFurniture ?? []
+        // Default enabledFurniture to ownedFurniture for backward compat
+        extras.enabledFurniture.value = data.enabledFurniture ?? data.ownedFurniture ?? []
         if (data.settings) {
           extras.settings.value = data.settings
         }

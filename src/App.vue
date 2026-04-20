@@ -180,17 +180,19 @@ const {
   ownedDecorations,
   equippedDecorations,
   ownedFurniture,
+  enabledFurniture,
   buyFood,
   useFood,
   getFoodDetails,
   buyDecoration,
   toggleEquipDecoration,
   buyFurniture,
+  toggleEnableFurniture,
   startCoinTimer,
   stopCoinTimer,
 } = useInventory()
 
-const { buffValues } = useBuff(equippedDecorations, ownedFurniture)
+const { buffValues } = useBuff(equippedDecorations, enabledFurniture)
 
 const {
   isOnAdventure,
@@ -218,6 +220,7 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   ownedDecorations,
   equippedDecorations,
   ownedFurniture,
+  enabledFurniture,
   settings,
   offlineCoinCap,
 }, {
@@ -315,6 +318,7 @@ function getPanelData(panel: string): Record<string, any> {
         hasTelescope: hasTelescope.value,
         ownedDecorations: ownedDecorations.value,
         ownedFurniture: ownedFurniture.value,
+        enabledFurniture: enabledFurniture.value,
       }
     case 'feed':
       return { ownedFoods: ownedFoods.value }
@@ -364,6 +368,7 @@ function handlePanelAction(action: string, payload?: any) {
     case 'buyFood': onBuyFood(payload); break
     case 'buyDecoration': onBuyDecoration(payload); break
     case 'buyFurniture': onBuyFurniture(payload); break
+    case 'toggleFurniture': toggleEnableFurniture(payload); break
     case 'buyGear': onBuyGear(payload); break
     case 'feed': onFeedItem(payload); break
     case 'toggleEquip': onToggleEquip(payload); break
@@ -465,7 +470,7 @@ const furnPositionStyles: Record<string, Record<string, string>> = {
 }
 
 const visibleFurniture = computed(() => {
-  return ownedFurniture.value.map(id => {
+  return enabledFurniture.value.map(id => {
     const furn = furniture.find(f => f.id === id)
     return {
       id,

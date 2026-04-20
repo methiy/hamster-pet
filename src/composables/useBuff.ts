@@ -12,7 +12,7 @@ export interface BuffValues {
 
 export function useBuff(
   equippedDecorations: Ref<string[]>,
-  ownedFurniture: Ref<string[]>
+  enabledFurniture: Ref<string[]>
 ) {
   const buffValues = computed<BuffValues>(() => {
     let coinMultiplier = 1.0
@@ -31,7 +31,7 @@ export function useBuff(
       }
     }
 
-    for (const furnId of ownedFurniture.value) {
+    for (const furnId of enabledFurniture.value) {
       const furn = furniture.find(f => f.id === furnId)
       if (furn?.buff) {
         coinMultiplier += furn.buff.coinMultiplier ?? 0
