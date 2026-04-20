@@ -1,12 +1,10 @@
 <template>
-  <Teleport to="body">
-    <div v-if="weather" class="weather-widget">
-      <div class="weather-pill">
-        <span class="weather-emoji">{{ emoji }}</span>
-        <span class="weather-temp">{{ weather.temp }}°C</span>
-      </div>
+  <div v-if="weather" class="weather-widget">
+    <div class="weather-pill">
+      <span class="weather-emoji">{{ emoji }}</span>
+      <span class="weather-temp">{{ weather.temp }}°C</span>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -20,10 +18,6 @@ defineProps<{
 
 <style scoped>
 .weather-widget {
-  position: fixed;
-  top: 8px;
-  right: 8px;
-  z-index: 3500;
   pointer-events: none;
 }
 

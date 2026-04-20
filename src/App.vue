@@ -5,62 +5,70 @@
     @contextmenu.prevent="onRightClick"
     @dblclick="onDoubleClick"
   >
-    <SpeechBubble
-      :text="speechText"
-      :visible="speechVisible"
-      @hide="speechVisible = false"
-    />
-
-    <div class="hamster-area" :class="pushAnimationClasses" :style="hamsterScaleStyle">
-      <div class="decoration-layer">
-        <img
-          v-for="deco in visibleDecorations"
-          :key="deco.id"
-          class="decoration-img"
-          :src="deco.icon"
-          :alt="deco.id"
-          :style="deco.style"
+    <div class="scene" :style="sceneStyle">
+      <div class="scene-inner">
+        <SpeechBubble
+          :text="speechText"
+          :visible="speechVisible"
+          @hide="speechVisible = false"
         />
+
+        <div class="info-stack">
+          <WeatherWidget
+            :weather="weather"
+            :emoji="weatherEmoji"
+          />
+
+          <StatusNote
+            v-if="isOnAdventure && adventureLocation && adventureEndTime"
+            :location-emoji="adventureLocation.emoji"
+            :location-name="adventureLocation.name"
+            :end-time="adventureEndTime"
+          />
+
+          <PomodoroNote
+            :is-running="pomodoroIsRunning"
+            :phase-emoji="pomodoroPhaseEmoji"
+            :phase-label="pomodoroPhaseLabel"
+            :display-time="pomodoroDisplayTime"
+          />
+        </div>
+
+        <div class="hamster-spacer"></div>
+
+        <div class="hamster-area" :class="pushAnimationClasses">
+          <div class="decoration-layer">
+            <img
+              v-for="deco in visibleDecorations"
+              :key="deco.id"
+              class="decoration-img"
+              :src="deco.icon"
+              :alt="deco.id"
+              :style="deco.style"
+            />
+          </div>
+
+          <img
+            v-for="furn in visibleFurniture"
+            :key="furn.id"
+            class="furniture-img"
+            :src="furn.icon"
+            :alt="furn.id"
+            :style="furn.style"
+          />
+
+          <HamsterSprite
+            :state="displayState"
+            @region-click="onRegionClick"
+            @region-hover="onRegionHover"
+            @miss-click="onMissClick"
+            @grab-start="onGrabStart"
+            @grab-move="onGrabMove"
+            @grab-end="onGrabEnd"
+          />
+        </div>
       </div>
-
-      <img
-        v-for="furn in visibleFurniture"
-        :key="furn.id"
-        class="furniture-img"
-        :src="furn.icon"
-        :alt="furn.id"
-        :style="furn.style"
-      />
-
-      <HamsterSprite
-        :state="displayState"
-        @region-click="onRegionClick"
-        @region-hover="onRegionHover"
-        @miss-click="onMissClick"
-        @grab-start="onGrabStart"
-        @grab-move="onGrabMove"
-        @grab-end="onGrabEnd"
-      />
     </div>
-
-    <WeatherWidget
-      :weather="weather"
-      :emoji="weatherEmoji"
-    />
-
-    <StatusNote
-      v-if="isOnAdventure && adventureLocation && adventureEndTime"
-      :location-emoji="adventureLocation.emoji"
-      :location-name="adventureLocation.name"
-      :end-time="adventureEndTime"
-    />
-
-    <PomodoroNote
-      :is-running="pomodoroIsRunning"
-      :phase-emoji="pomodoroPhaseEmoji"
-      :phase-label="pomodoroPhaseLabel"
-      :display-time="pomodoroDisplayTime"
-    />
 
     <ToastNotification />
   </div>
@@ -402,16 +410,18 @@ let clickTimer: ReturnType<typeof setTimeout> | null = null
 let pendingRegion: BodyRegion | null = null
 
 // --- Scale style ---
+const BASE_WIDTH = 150
+const BASE_HEIGHT = 170
 const sizeScaleMap: Record<string, number> = {
-  small: 0.67,
+  small: 0.8,
   medium: 1.0,
-  large: 1.33,
+  large: 1.3,
 }
 
-const hamsterScaleStyle = computed(() => {
+const sceneStyle = computed(() => {
   const scale = sizeScaleMap[settings.value.size] ?? 1.0
   if (scale === 1.0) return {}
-  return { transform: `translateX(-50%) scale(${scale})`, transformOrigin: 'bottom center' }
+  return { transform: `scale(${scale})`, transformOrigin: 'bottom center' }
 })
 
 const pushAnimationClasses = computed(() => {
@@ -830,17 +840,12 @@ function onToggleAlwaysOnTop(value: boolean) {
 
 function onChangeSize(value: string) {
   settings.value = { ...settings.value, size: value as SettingsData['size'] }
-  const sizeMap: Record<string, [number, number]> = {
-    small: [160, 180],
-    medium: [240, 260],
-    large: [320, 340],
-  }
-  const dims = sizeMap[value]
-  if (dims) {
-    import('@tauri-apps/api/dpi').then(({ LogicalSize }) => {
-      getCurrentWindow().setSize(new LogicalSize(dims[0], dims[1]))
-    }).catch(() => { /* Not in Tauri */ })
-  }
+  const scale = sizeScaleMap[value] ?? 1.0
+  const w = Math.round(BASE_WIDTH * scale)
+  const h = Math.round(BASE_HEIGHT * scale)
+  import('@tauri-apps/api/dpi').then(({ LogicalSize }) => {
+    getCurrentWindow().setSize(new LogicalSize(w, h))
+  }).catch(() => { /* Not in Tauri */ })
 }
 
 function onChangeVolume(value: number) {
@@ -1048,8 +1053,8 @@ onMounted(async () => {
           // Get DPI scale to compute physical pixel offsets for centering pet on cursor
           let scale = 1.0
           try { scale = await win.scaleFactor() } catch { /* fallback to 1.0 */ }
-          const offsetX = 125 * scale  // half pet window width (logical 250/2)
-          const offsetY = 150 * scale  // roughly center pet vertically
+          const offsetX = 75 * scale  // half pet window width (logical 150/2)
+          const offsetY = 85 * scale  // roughly center pet vertically (logical 170/2)
           const targetX = cursor.x - offsetX
           const targetY = cursor.y - offsetY
 
@@ -1131,13 +1136,37 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 
-.hamster-area {
+.scene {
   position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  inset: 0;
+}
+
+.scene-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  padding-bottom: 5px;
+}
+
+.info-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.hamster-spacer {
+  height: 4px;
+  flex-shrink: 0;
+}
+
+.hamster-area {
+  position: relative;
   width: 120px;
   height: 120px;
+  flex-shrink: 0;
 }
 
 .decoration-layer {
@@ -1169,8 +1198,8 @@ onUnmounted(() => {
   animation-name: push-lean-right;
 }
 @keyframes push-lean-right {
-  0% { transform: translateX(-50%) rotate(0deg); }
-  100% { transform: translateX(-50%) rotate(-15deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-15deg); }
 }
 
 /* Push left: face left (flipped) and lean into push */
@@ -1178,8 +1207,8 @@ onUnmounted(() => {
   animation-name: push-lean-left;
 }
 @keyframes push-lean-left {
-  0% { transform: translateX(-50%) scaleX(-1) rotate(0deg); }
-  100% { transform: translateX(-50%) scaleX(-1) rotate(-15deg); }
+  0% { transform: scaleX(-1) rotate(0deg); }
+  100% { transform: scaleX(-1) rotate(-15deg); }
 }
 
 /* Push up: lean backward slightly */
@@ -1187,8 +1216,8 @@ onUnmounted(() => {
   animation-name: push-lean-up;
 }
 @keyframes push-lean-up {
-  0% { transform: translateX(-50%) rotate(0deg); }
-  100% { transform: translateX(-50%) translateY(-5px) rotate(0deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: translateY(-5px) rotate(0deg); }
 }
 
 /* Push down: lean forward / push down */
@@ -1196,17 +1225,17 @@ onUnmounted(() => {
   animation-name: push-lean-down;
 }
 @keyframes push-lean-down {
-  0% { transform: translateX(-50%) rotate(0deg); }
-  100% { transform: translateX(-50%) translateY(5px) rotate(0deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: translateY(5px) rotate(0deg); }
 }
 
 @keyframes push-lean {
-  0% { transform: translateX(-50%) rotate(0deg); }
-  100% { transform: translateX(-50%) rotate(-15deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-15deg); }
 }
 
 /* Walking back: flip horizontally */
 .hamster-flipped {
-  transform: translateX(-50%) scaleX(-1);
+  transform: scaleX(-1);
 }
 </style>

@@ -28,8 +28,8 @@
     "windows": [
       {
         "title": "Hamster Pet",
-        "width": 250,
-        "height": 300,
+        "width": 150,
+        "height": 170,
         "resizable": false,
         "decorations": false,
         "transparent": true,

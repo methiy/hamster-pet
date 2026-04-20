@@ -38,10 +38,6 @@ watch(() => props.visible, (v) => {
 
 <style scoped>
 .speech-bubble {
-  position: absolute;
-  bottom: 145px;
-  left: 50%;
-  transform: translateX(-50%);
   background: #FFFDE7;
   color: #5D4037;
   font-size: 13px;
@@ -80,10 +76,10 @@ watch(() => props.visible, (v) => {
 }
 .bubble-enter-from {
   opacity: 0;
-  transform: translateX(-50%) translateY(4px);
+  transform: translateY(4px);
 }
 .bubble-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(-4px);
+  transform: translateY(-4px);
 }
 </style>

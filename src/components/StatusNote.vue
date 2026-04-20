@@ -1,12 +1,10 @@
 <template>
-  <Teleport to="body">
-    <div class="status-note">
-      <div class="note-content">
-        <span class="note-icon">{{ locationEmoji }}</span>
-        <span class="note-text">去{{ locationName }}啦~ {{ returnTimeStr }}回</span>
-      </div>
+  <div class="status-note">
+    <div class="note-content">
+      <span class="note-icon">{{ locationEmoji }}</span>
+      <span class="note-text">去{{ locationName }}啦~ {{ returnTimeStr }}回</span>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -28,11 +26,6 @@ const returnTimeStr = computed(() => {
 
 <style scoped>
 .status-note {
-  position: fixed;
-  bottom: 210px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4000;
   pointer-events: none;
 }
 

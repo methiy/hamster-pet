@@ -1,12 +1,10 @@
 <template>
-  <Teleport to="body">
-    <div v-if="isRunning" class="pomodoro-note">
-      <div class="note-content">
-        <span class="note-icon">{{ phaseEmoji }}</span>
-        <span class="note-text">{{ phaseLabel }} {{ displayTime }}</span>
-      </div>
+  <div v-if="isRunning" class="pomodoro-note">
+    <div class="note-content">
+      <span class="note-icon">{{ phaseEmoji }}</span>
+      <span class="note-text">{{ phaseLabel }} {{ displayTime }}</span>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -20,11 +18,6 @@ defineProps<{
 
 <style scoped>
 .pomodoro-note {
-  position: fixed;
-  bottom: 230px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4000;
   pointer-events: none;
 }
 
