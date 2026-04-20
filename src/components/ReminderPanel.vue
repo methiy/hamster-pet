@@ -14,13 +14,82 @@
             rows="2"
             maxlength="200"
           />
-          <div class="form-row">
+
+          <!-- Mode toggle -->
+          <div class="mode-toggle">
+            <button
+              class="mode-btn"
+              :class="{ active: mode === 'once' }"
+              @click="mode = 'once'"
+            >⏰ 指定时间</button>
+            <button
+              class="mode-btn"
+              :class="{ active: mode === 'interval' }"
+              @click="mode = 'interval'"
+            >🔄 间隔提醒</button>
+          </div>
+
+          <!-- Once mode -->
+          <div v-if="mode === 'once'" class="form-row">
             <input
               v-model="newDatetime"
               type="datetime-local"
               class="datetime-input"
             />
-            <button class="add-btn" :disabled="!newText.trim()" @click="onAdd">
+            <button class="add-btn" :disabled="!canAdd" @click="onAdd">
+              ➕ 添加
+            </button>
+          </div>
+
+          <!-- Interval mode -->
+          <div v-else class="interval-form">
+            <div class="time-row">
+              <label class="time-label">
+                开始
+                <input v-model="newStartTime" type="time" class="time-input" />
+              </label>
+              <label class="time-label">
+                结束
+                <input v-model="newEndTime" type="time" class="time-input" />
+              </label>
+            </div>
+
+            <div class="interval-row">
+              <span class="interval-label">间隔:</span>
+              <div class="preset-btns">
+                <button
+                  v-for="p in INTERVAL_PRESETS"
+                  :key="p.value"
+                  class="preset-btn"
+                  :class="{ active: selectedInterval === p.value }"
+                  @click="selectPreset(p.value)"
+                >{{ p.label }}</button>
+              </div>
+              <input
+                v-model="customInterval"
+                type="number"
+                min="1"
+                class="custom-interval"
+                placeholder="自定义"
+                @input="onCustomIntervalInput"
+              />
+              <span class="interval-unit">分钟</span>
+            </div>
+
+            <div class="repeat-row">
+              <span class="repeat-label">重复:</span>
+              <label class="checkbox-label">
+                <input v-model="repeatWorkday" type="checkbox" />
+                <span>工作日</span>
+              </label>
+              <label class="checkbox-label">
+                <input v-model="repeatWeekend" type="checkbox" />
+                <span>休息日</span>
+              </label>
+              <span class="repeat-hint">不勾选 = 仅今天</span>
+            </div>
+
+            <button class="add-btn full-width" :disabled="!canAdd" @click="onAdd">
               ➕ 添加
             </button>
           </div>
@@ -40,11 +109,21 @@
             <div class="reminder-content">
               <div class="reminder-text">{{ r.text }}</div>
               <div class="reminder-meta">
-                <span v-if="r.datetime" class="reminder-time" :class="{ overdue: isOverdue(r) }">
-                  ⏰ {{ formatDatetime(r.datetime) }}
-                  <span v-if="r.notified" class="notified-badge">已提醒</span>
-                </span>
-                <span v-else class="reminder-time">📌 无时间限制</span>
+                <!-- once mode display -->
+                <template v-if="!r.type || r.type === 'once'">
+                  <span v-if="r.datetime" class="reminder-time" :class="{ overdue: isOverdue(r) }">
+                    ⏰ {{ formatDatetime(r.datetime) }}
+                    <span v-if="r.notified" class="notified-badge">已提醒</span>
+                  </span>
+                  <span v-else class="reminder-time">📌 无时间限制</span>
+                </template>
+                <!-- interval mode display -->
+                <template v-else>
+                  <span class="reminder-time interval-info">
+                    🔄 {{ r.startTime }}-{{ r.endTime }} 每{{ r.intervalMinutes }}分钟
+                  </span>
+                  <span class="repeat-tag">{{ formatRepeatDays(r) }}</span>
+                </template>
               </div>
             </div>
             <button class="delete-btn" @click="emit('remove', r.id)">🗑️</button>
@@ -65,17 +144,45 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  add: [text: string, datetime: number | null]
+  add: [text: string, opts: {
+    type: 'once'
+    datetime: number | null
+  } | {
+    type: 'interval'
+    startTime: string
+    endTime: string
+    intervalMinutes: number
+    repeatDays: ('workday' | 'weekend')[]
+  }]
   remove: [id: string]
 }>()
 
 const newText = ref('')
+
+// once mode state
 const newDatetime = ref('')
+
+// interval mode state
+const mode = ref<'once' | 'interval'>('once')
+const newStartTime = ref('09:00')
+const newEndTime = ref('18:00')
+const selectedInterval = ref<number | null>(30)
+const customInterval = ref('')
+const repeatWorkday = ref(false)
+const repeatWeekend = ref(false)
+
+const INTERVAL_PRESETS = [
+  { label: '15分钟', value: 15 },
+  { label: '30分钟', value: 30 },
+  { label: '1小时', value: 60 },
+  { label: '2小时', value: 120 },
+]
 
 const sortedReminders = computed(() => {
   return [...props.reminders].sort((a, b) => {
-    // Unnotified with time first, then unnotified without time, then notified
     if (a.notified !== b.notified) return a.notified ? 1 : -1
+    if (a.type === 'interval' && b.type !== 'interval') return -1
+    if (a.type !== 'interval' && b.type === 'interval') return 1
     if (a.datetime && b.datetime) return a.datetime - b.datetime
     if (a.datetime) return -1
     if (b.datetime) return 1
@@ -84,6 +191,7 @@ const sortedReminders = computed(() => {
 })
 
 function isOverdue(r: Reminder): boolean {
+  if (r.type === 'interval') return false
   return !!r.datetime && !r.notified && r.datetime <= Date.now()
 }
 
@@ -102,14 +210,68 @@ function formatDatetime(ts: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${time}`
 }
 
+function formatRepeatDays(r: Reminder): string {
+  if (r.repeatDays.length === 0) return '仅今天'
+  const has = (s: string) => r.repeatDays.includes(s as any)
+  if (has('workday') && has('weekend')) return '每天'
+  if (has('workday')) return '工作日'
+  return '休息日'
+}
+
+function selectPreset(value: number) {
+  selectedInterval.value = value
+  customInterval.value = ''
+}
+
+function onCustomIntervalInput() {
+  selectedInterval.value = null
+}
+
+function getEffectiveInterval(): number | null {
+  if (selectedInterval.value !== null) return selectedInterval.value
+  const v = parseInt(customInterval.value)
+  return isNaN(v) || v <= 0 ? null : v
+}
+
 function onAdd() {
   const text = newText.value.trim()
   if (!text) return
-  const datetime = newDatetime.value ? new Date(newDatetime.value).getTime() : null
-  emit('add', text, datetime)
+
+  if (mode.value === 'once') {
+    const datetime = newDatetime.value ? new Date(newDatetime.value).getTime() : null
+    emit('add', text, { type: 'once', datetime })
+    newDatetime.value = ''
+  } else {
+    const interval = getEffectiveInterval()
+    if (!interval) return
+    const repeatDays: ('workday' | 'weekend')[] = []
+    if (repeatWorkday.value) repeatDays.push('workday')
+    if (repeatWeekend.value) repeatDays.push('weekend')
+    emit('add', text, {
+      type: 'interval',
+      startTime: newStartTime.value,
+      endTime: newEndTime.value,
+      intervalMinutes: interval,
+      repeatDays,
+    })
+    newStartTime.value = '09:00'
+    newEndTime.value = '18:00'
+    selectedInterval.value = 30
+    customInterval.value = ''
+    repeatWorkday.value = false
+    repeatWeekend.value = false
+  }
+
   newText.value = ''
-  newDatetime.value = ''
 }
+
+const canAdd = computed(() => {
+  if (!newText.value.trim()) return false
+  if (mode.value === 'interval') {
+    return getEffectiveInterval() !== null
+  }
+  return true
+})
 </script>
 
 <style scoped>
@@ -319,5 +481,181 @@ function onAdd() {
 
 .delete-btn:hover {
   opacity: 1;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 8px;
+  background: white;
+  color: #5C4033;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-btn.active {
+  background: #F2A65A;
+  color: white;
+  border-color: #F2A65A;
+}
+
+.interval-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.time-row {
+  display: flex;
+  gap: 12px;
+}
+
+.time-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #5C4033;
+}
+
+.time-input {
+  flex: 1;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #5C4033;
+  background: white;
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #F2A65A;
+}
+
+.interval-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.interval-label {
+  font-size: 12px;
+  color: #5C4033;
+  white-space: nowrap;
+}
+
+.preset-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.preset-btn {
+  padding: 4px 8px;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 6px;
+  background: white;
+  color: #5C4033;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-btn.active {
+  background: #F2A65A;
+  color: white;
+  border-color: #F2A65A;
+}
+
+.preset-btn:hover:not(.active) {
+  border-color: #F2A65A;
+}
+
+.custom-interval {
+  width: 50px;
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #5C4033;
+  background: white;
+  text-align: center;
+}
+
+.custom-interval:focus {
+  outline: none;
+  border-color: #F2A65A;
+}
+
+.interval-unit {
+  font-size: 11px;
+  color: #A08060;
+}
+
+.repeat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repeat-label {
+  font-size: 12px;
+  color: #5C4033;
+  white-space: nowrap;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #5C4033;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: #F2A65A;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.repeat-hint {
+  font-size: 10px;
+  color: #A08060;
+  margin-left: auto;
+}
+
+.add-btn.full-width {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.interval-info {
+  display: block;
+}
+
+.repeat-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #F2A65A;
+  color: white;
+  margin-top: 3px;
 }
 </style>

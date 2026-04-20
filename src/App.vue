@@ -915,8 +915,17 @@ function onReminder() {
   showReminder.value = true
 }
 
-function onAddReminder(text: string, datetime: number | null) {
-  addReminder(text, datetime)
+function onAddReminder(text: string, opts: {
+  type: 'once'
+  datetime: number | null
+} | {
+  type: 'interval'
+  startTime: string
+  endTime: string
+  intervalMinutes: number
+  repeatDays: ('workday' | 'weekend')[]
+}) {
+  addReminder(text, opts)
   showToast({ type: 'success', icon: '📝', title: '备忘已添加', message: text.slice(0, 30) })
 }
 
