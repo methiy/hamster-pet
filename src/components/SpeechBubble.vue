@@ -26,9 +26,12 @@ watch(() => props.visible, (v) => {
     hideTimer = null
   }
   if (v) {
+    // Longer text gets more display time (base 3s + 80ms per char over 10)
+    const extraChars = Math.max(0, props.text.length - 10)
+    const duration = 3000 + extraChars * 80
     hideTimer = setTimeout(() => {
       emit('hide')
-    }, 3000)
+    }, duration)
   }
 })
 </script>
@@ -46,7 +49,10 @@ watch(() => props.visible, (v) => {
   padding: 6px 12px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  max-width: 200px;
+  text-align: center;
   pointer-events: none;
   z-index: 9999;
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
