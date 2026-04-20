@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { foods, type Food } from '../data/foods'
 import { decorations } from '../data/decorations'
 import { furniture } from '../data/furniture'
@@ -44,10 +44,6 @@ export function useInventory() {
   function getFoodDetails(foodId: string): Food | undefined {
     return foods.find(f => f.id === foodId)
   }
-
-  const totalFoodCount = computed(() =>
-    ownedFoods.value.reduce((sum, f) => sum + f.quantity, 0)
-  )
 
   function buyDecoration(decoId: string): boolean {
     const deco = decorations.find(d => d.id === decoId)
@@ -126,7 +122,6 @@ export function useInventory() {
     equippedDecorations,
     ownedFurniture,
     enabledFurniture,
-    totalFoodCount,
     buyFood,
     useFood,
     getFoodDetails,

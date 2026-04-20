@@ -39,11 +39,6 @@ interface SaveData {
     hasBoatTicket: boolean
     hasTelescope: boolean
   }
-  typingStats?: {
-    totalWordsTyped: number
-    bestWpm: number
-    lastDifficulty: string
-  }
   reminders?: Reminder[]
   status?: {
     mood: number

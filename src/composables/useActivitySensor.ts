@@ -102,6 +102,5 @@ export function useActivitySensor() {
   return {
     currentActivity,
     windowInfo,
-    idleSeconds,
   }
 }

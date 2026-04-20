@@ -24,11 +24,10 @@ import {
   hidingAnimation,
   adventureOutAnimation,
   adventureBackAnimation,
-  typingAnimation,
 } from '../sprites/image-frames'
 import type { BodyRegion } from '../data/hamsterPhrases'
 
-export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy' | 'typing'
+export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
 
 const CANVAS_SIZE = 128
 
@@ -116,7 +115,6 @@ function getAnimation(state: SpriteState): ImageAnimationDef {
     case 'hiding': return hidingAnimation
     case 'adventure_out': return adventureOutAnimation
     case 'adventure_back': return adventureBackAnimation
-    case 'typing': return typingAnimation
   }
 }
 

@@ -140,7 +140,6 @@ export function useAdventure() {
     hasTreasureMap,
     hasBoatTicket,
     hasTelescope,
-    availableLocations,
     startAdventure,
     checkAdventureReturn,
     getAdventureData,

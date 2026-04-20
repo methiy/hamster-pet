@@ -114,11 +114,7 @@ const settings = ref<SettingsData>({
 // --- Audio ---
 const audioVolume = computed(() => settings.value.volume ?? 70)
 const audioMuted = computed(() => settings.value.muted ?? false)
-const audioVolumeRef = ref(audioVolume.value)
-const audioMutedRef = ref(audioMuted.value)
-watch(audioVolume, v => { audioVolumeRef.value = v })
-watch(audioMuted, v => { audioMutedRef.value = v })
-const { playSound } = useAudio(audioVolumeRef, audioMutedRef)
+const { playSound } = useAudio(audioVolume, audioMuted)
 
 // --- Core composables ---
 const { currentState, displayState, triggerHappy, feedHamster, setState, triggerReaction } = useHamster()
@@ -265,7 +261,6 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
   triggerReaction,
   onComplete: () => {
     resetReacting()
-    clampToScreen()
   },
 })
 
@@ -273,13 +268,6 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
 const activityReactionEnabled = computed(() => settings.value.activityReactionEnabled ?? true)
 const activityPushEnabled = computed(() => settings.value.activityPushEnabled ?? true)
 const activityCheckInterval = computed(() => settings.value.activityCheckInterval ?? 15)
-
-const activityReactionEnabledRef = ref(activityReactionEnabled.value)
-const activityPushEnabledRef = ref(activityPushEnabled.value)
-const activityCheckIntervalRef = ref(activityCheckInterval.value)
-watch(activityReactionEnabled, v => { activityReactionEnabledRef.value = v })
-watch(activityPushEnabled, v => { activityPushEnabledRef.value = v })
-watch(activityCheckInterval, v => { activityCheckIntervalRef.value = v })
 
 const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReaction(
   currentActivity,
@@ -294,9 +282,9 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
     },
   },
   {
-    reactionEnabled: activityReactionEnabledRef,
-    pushEnabled: activityPushEnabledRef,
-    checkInterval: activityCheckIntervalRef,
+    reactionEnabled: activityReactionEnabled,
+    pushEnabled: activityPushEnabled,
+    checkInterval: activityCheckInterval,
     onFirstPush: () => {
       showSpeechText('主人~如果不想被打扰，可以去设置里关闭互动哦~')
     },

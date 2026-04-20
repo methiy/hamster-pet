@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
-export type HamsterState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy' | 'typing'
+export type HamsterState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
 
 interface StateConfig {
   minDuration: number
@@ -17,7 +17,6 @@ const stateConfigs: Record<HamsterState, StateConfig> = {
   adventure_out:  { minDuration: 5000,  maxDuration: 12000, weight: 10 },
   adventure_back: { minDuration: 2000,  maxDuration: 4000,  weight: 0 },  // follows adventure_out
   happy:          { minDuration: 2000,  maxDuration: 3000,  weight: 0 },  // triggered manually
-  typing:         { minDuration: 0,     maxDuration: 0,     weight: 0 },  // manual, no auto-transition
 }
 
 function randomBetween(min: number, max: number): number {
@@ -38,7 +37,6 @@ function pickNextState(): HamsterState {
 export function useHamster() {
   const currentState = ref<HamsterState>('idle')
   let timer: ReturnType<typeof setTimeout> | null = null
-  let paused = false
 
   // Reaction system: temporarily override displayed state
   const reactionState = ref<HamsterState | null>(null)
@@ -56,12 +54,9 @@ export function useHamster() {
   const displayState = computed(() => reactionState.value ?? currentState.value)
 
   function scheduleNext() {
-    if (paused) return
     const config = stateConfigs[currentState.value]
-    if (config.minDuration === 0 && config.maxDuration === 0) return // no auto-transition (e.g. typing)
     const duration = randomBetween(config.minDuration, config.maxDuration)
     timer = setTimeout(() => {
-      if (paused) return
       if (currentState.value === 'adventure_out') {
         currentState.value = 'adventure_back'
         scheduleNext()
@@ -90,19 +85,6 @@ export function useHamster() {
     scheduleNext()
   }
 
-  function pauseAutoTransition() {
-    paused = true
-    if (timer) {
-      clearTimeout(timer)
-      timer = null
-    }
-  }
-
-  function resumeAutoTransition() {
-    paused = false
-    scheduleNext()
-  }
-
   onMounted(() => {
     scheduleNext()
   })
@@ -118,7 +100,5 @@ export function useHamster() {
     feedHamster,
     setState,
     triggerReaction,
-    pauseAutoTransition,
-    resumeAutoTransition,
   }
 }

@@ -49,9 +49,3 @@ export const WEATHER_PHRASES: Record<WeatherCondition, string[]> = {
     '大风天气小心安全！',
   ],
 }
-
-export const WEATHER_CHANGE_PHRASES = [
-  '天气变了呢！',
-  '外面天气不一样了~',
-  '看看外面的天气吧！',
-]
