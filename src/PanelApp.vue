@@ -66,6 +66,7 @@ import ReminderPanel from './components/ReminderPanel.vue'
 import StatusPanel from './components/StatusPanel.vue'
 import PomodoroPanel from './components/PomodoroPanel.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
+import AboutPanel from './components/AboutPanel.vue'
 
 const tabs = [
   { key: 'shop', icon: '🏪', label: '商店' },
@@ -77,6 +78,7 @@ const tabs = [
   { key: 'status', icon: '📊', label: '状态' },
   { key: 'pomodoro', icon: '🍅', label: '番茄钟' },
   { key: 'settings', icon: '⚙️', label: '设置' },
+  { key: 'about', icon: 'ℹ️', label: '关于' },
 ]
 
 const panelMap: Record<string, Component> = {
@@ -89,6 +91,7 @@ const panelMap: Record<string, Component> = {
   status: StatusPanel,
   pomodoro: PomodoroPanel,
   settings: SettingsPanel,
+  about: AboutPanel,
 }
 
 const currentPanel = ref<string | null>(null)

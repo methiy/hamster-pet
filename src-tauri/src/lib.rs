@@ -89,6 +89,7 @@ fn show_context_menu(window: tauri::Window) {
         .item(&PredefinedMenuItem::separator(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_pomodoro", "🍅 番茄钟").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_settings", "⚙️ 设置").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_about", "ℹ️ 关于").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_quit", "❌ 退出").build(app).unwrap())
         .build()
         .unwrap();
@@ -157,6 +158,7 @@ pub fn run() {
                     "ctx_status" => { let _ = menu_handle.emit("tray-action", "status"); }
                     "ctx_pomodoro" => { let _ = menu_handle.emit("tray-action", "pomodoro"); }
                     "ctx_settings" => { let _ = menu_handle.emit("tray-action", "settings"); }
+                    "ctx_about" => { let _ = menu_handle.emit("tray-action", "about"); }
                     "ctx_quit" => { let _ = menu_handle.emit("tray-action", "quit"); }
                     _ => {}
                 }

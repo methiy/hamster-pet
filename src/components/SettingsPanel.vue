@@ -124,31 +124,6 @@
             </div>
           </div>
         </div>
-
-        <div class="about-section">
-          <div class="about-text">仓鼠宠物 v0.7.0</div>
-          <div class="about-heart">❤️</div>
-        </div>
-
-        <div class="shortcuts-section">
-          <h3 class="shortcuts-title">⌨️ 快捷键</h3>
-          <div class="shortcut-row">
-            <span class="shortcut-label">📍 召唤宠物</span>
-            <kbd class="shortcut-key">Ctrl+Shift+P</kbd>
-          </div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">🍽️ 喂食</span>
-            <kbd class="shortcut-key">Ctrl+Shift+F</kbd>
-          </div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">📝 备忘</span>
-            <kbd class="shortcut-key">Ctrl+Shift+N</kbd>
-          </div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">🍅 番茄钟</span>
-            <kbd class="shortcut-key">Ctrl+Shift+T</kbd>
-          </div>
-        </div>
   </div>
 </template>
 
@@ -322,25 +297,6 @@ function onCustomIntervalChange() {
   background: rgba(242, 166, 90, 0.1);
 }
 
-.about-section {
-  margin-top: 20px;
-  text-align: center;
-  padding: 12px;
-  background: rgba(92, 64, 51, 0.05);
-  border-radius: 8px;
-}
-
-.about-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: #5C4033;
-}
-
-.about-heart {
-  font-size: 18px;
-  margin-top: 4px;
-}
-
 .volume-slider {
   width: 100px;
   height: 4px;
@@ -381,42 +337,6 @@ function onCustomIntervalChange() {
 .city-input:focus {
   outline: none;
   border-color: #F2A65A;
-}
-
-.shortcuts-section {
-  margin-top: 14px;
-  padding: 12px;
-  background: rgba(92, 64, 51, 0.05);
-  border-radius: 8px;
-}
-
-.shortcuts-title {
-  font-size: 14px;
-  margin: 0 0 8px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.shortcut-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
-}
-
-.shortcut-label {
-  font-size: 12px;
-}
-
-.shortcut-key {
-  background: white;
-  border: 1px solid rgba(92, 64, 51, 0.15);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-  color: #5C4033;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .setting-hint {

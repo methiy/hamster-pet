@@ -346,6 +346,8 @@ function getPanelData(panel: string): Record<string, any> {
         activityPushEnabled: settings.value.activityPushEnabled ?? true,
         activityCheckInterval: settings.value.activityCheckInterval ?? 15,
       }
+    case 'about':
+      return {}
     default:
       return {}
   }
@@ -1079,6 +1081,7 @@ onMounted(async () => {
         case 'status':
         case 'pomodoro':
         case 'settings':
+        case 'about':
           openPanelFor(action)
           break
         case 'toggle-passthrough':
