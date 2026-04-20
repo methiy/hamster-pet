@@ -21,6 +21,8 @@
     "core:window:allow-set-resizable",
     "core:event:default",
     "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:webview:allow-create-webview-window",
     "global-shortcut:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

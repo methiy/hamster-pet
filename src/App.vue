@@ -96,100 +96,6 @@
       :display-time="pomodoroDisplayTime"
     />
 
-    <ShopWindow
-      v-if="showShop"
-      :coins="coins"
-      :has-tent="hasTent"
-      :has-scarf="hasScarf"
-      :has-treasure-map="hasTreasureMap"
-      :has-boat-ticket="hasBoatTicket"
-      :has-telescope="hasTelescope"
-      :owned-decorations="ownedDecorations"
-      :owned-furniture="ownedFurniture"
-      @close="showShop = false"
-      @buy-food="onBuyFood"
-      @buy-decoration="onBuyDecoration"
-      @buy-furniture="onBuyFurniture"
-      @buy-gear="onBuyGear"
-    />
-
-    <FeedMenu
-      v-if="showFeed"
-      :owned-foods="ownedFoods"
-      @close="showFeed = false"
-      @feed="onFeedItem"
-    />
-
-    <PostcardGallery
-      v-if="showPostcards"
-      :collected-postcards="collectedPostcards"
-      @close="showPostcards = false"
-    />
-
-    <SouvenirShelf
-      v-if="showSouvenirs"
-      :collected-souvenirs="collectedSouvenirs"
-      @close="showSouvenirs = false"
-    />
-
-    <WardrobePanel
-      v-if="showWardrobe"
-      :owned-decorations="ownedDecorations"
-      :equipped-decorations="equippedDecorations"
-      @close="showWardrobe = false"
-      @toggle-equip="onToggleEquip"
-    />
-
-    <ReminderPanel
-      v-if="showReminder"
-      :reminders="reminders"
-      @close="showReminder = false"
-      @add="onAddReminder"
-      @remove="onRemoveReminder"
-    />
-
-    <StatusPanel
-      v-if="showStatus"
-      :status="status"
-      :mood-level="moodLevel"
-      @close="showStatus = false"
-    />
-
-    <PomodoroPanel
-      v-if="showPomodoro"
-      :is-running="pomodoroIsRunning"
-      :work-duration="pomodoroWorkDuration"
-      :break-duration="pomodoroBreakDuration"
-      :display-time="pomodoroDisplayTime"
-      :phase-emoji="pomodoroPhaseEmoji"
-      :phase-label="pomodoroPhaseLabel"
-      :stats="pomodoroStats"
-      @close="showPomodoro = false"
-      @start="onPomodoroStart"
-      @cancel="onPomodoroCancel"
-      @update:work-duration="pomodoroWorkDuration = $event"
-      @update:break-duration="pomodoroBreakDuration = $event"
-    />
-
-    <SettingsPanel
-      v-if="showSettings"
-      :always-on-top="settings.alwaysOnTop"
-      :size="settings.size"
-      :volume="settings.volume ?? 70"
-      :muted="settings.muted ?? false"
-      :weather-city="settings.weatherCity ?? ''"
-      :pass-through="settings.passThrough ?? false"
-      :auto-start="settings.autoStart ?? false"
-      @close="showSettings = false"
-      @update:always-on-top="onToggleAlwaysOnTop"
-      @update:size="onChangeSize"
-      @update:volume="onChangeVolume"
-      @update:muted="onChangeMuted"
-      @update:weather-city="onChangeWeatherCity"
-      @update:pass-through="onTogglePassThrough"
-      @update:auto-start="onToggleAutoStart"
-    />
-
     <ToastNotification />
   </div>
 </template>
@@ -203,17 +109,8 @@ import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
 import SpeechBubble from './components/SpeechBubble.vue'
 import StatusNote from './components/StatusNote.vue'
-import ShopWindow from './components/ShopWindow.vue'
-import FeedMenu from './components/FeedMenu.vue'
-import PostcardGallery from './components/PostcardGallery.vue'
-import SouvenirShelf from './components/SouvenirShelf.vue'
-import SettingsPanel from './components/SettingsPanel.vue'
 import ToastNotification from './components/ToastNotification.vue'
-import WardrobePanel from './components/WardrobePanel.vue'
 import TypingGame from './components/TypingGame.vue'
-import ReminderPanel from './components/ReminderPanel.vue'
-import StatusPanel from './components/StatusPanel.vue'
-import PomodoroPanel from './components/PomodoroPanel.vue'
 import PomodoroNote from './components/PomodoroNote.vue'
 import WeatherWidget from './components/WeatherWidget.vue'
 import { useHamster } from './composables/useHamster'
@@ -232,6 +129,7 @@ import { useStatus } from './composables/useStatus'
 import { usePomodoro } from './composables/usePomodoro'
 import { WORK_ENCOURAGE_PHRASES, WORK_SLACKING_PHRASES, BREAK_PHRASES, COMPLETE_PHRASES } from './data/pomodoroPhrases'
 import { useWeather } from './composables/useWeather'
+import { usePanelWindow } from './composables/usePanelWindow'
 import { WEATHER_PHRASES } from './data/weatherPhrases'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
 import type { BodyRegion } from './data/hamsterPhrases'
@@ -420,16 +318,94 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
   },
 )
 
-// --- Popup states ---
-const showShop = ref(false)
-const showFeed = ref(false)
-const showPostcards = ref(false)
-const showSouvenirs = ref(false)
-const showSettings = ref(false)
-const showWardrobe = ref(false)
-const showReminder = ref(false)
-const showStatus = ref(false)
-const showPomodoro = ref(false)
+// --- Panel window ---
+const { openPanel, syncState, setupActionListener, destroyActionListener, currentOpenPanel } = usePanelWindow()
+
+function getPanelData(panel: string): Record<string, any> {
+  switch (panel) {
+    case 'shop':
+      return {
+        coins: coins.value,
+        hasTent: hasTent.value,
+        hasScarf: hasScarf.value,
+        hasTreasureMap: hasTreasureMap.value,
+        hasBoatTicket: hasBoatTicket.value,
+        hasTelescope: hasTelescope.value,
+        ownedDecorations: ownedDecorations.value,
+        ownedFurniture: ownedFurniture.value,
+      }
+    case 'feed':
+      return { ownedFoods: ownedFoods.value }
+    case 'postcard':
+      return { collectedPostcards: [...collectedPostcards.value] }
+    case 'souvenir':
+      return { collectedSouvenirs: collectedSouvenirs.value }
+    case 'wardrobe':
+      return {
+        ownedDecorations: ownedDecorations.value,
+        equippedDecorations: equippedDecorations.value,
+      }
+    case 'reminder':
+      return { reminders: reminders.value }
+    case 'status':
+      return { status: status.value, moodLevel: moodLevel.value }
+    case 'pomodoro':
+      return {
+        isRunning: pomodoroIsRunning.value,
+        workDuration: pomodoroWorkDuration.value,
+        breakDuration: pomodoroBreakDuration.value,
+        displayTime: pomodoroDisplayTime.value,
+        phaseEmoji: pomodoroPhaseEmoji.value,
+        phaseLabel: pomodoroPhaseLabel.value,
+        stats: pomodoroStats.value,
+      }
+    case 'settings':
+      return {
+        alwaysOnTop: settings.value.alwaysOnTop,
+        size: settings.value.size,
+        volume: settings.value.volume ?? 70,
+        muted: settings.value.muted ?? false,
+        weatherCity: settings.value.weatherCity ?? '',
+        passThrough: settings.value.passThrough ?? false,
+        autoStart: settings.value.autoStart ?? false,
+      }
+    default:
+      return {}
+  }
+}
+
+function handlePanelAction(action: string, payload?: any) {
+  switch (action) {
+    case 'buyFood': onBuyFood(payload); break
+    case 'buyDecoration': onBuyDecoration(payload); break
+    case 'buyFurniture': onBuyFurniture(payload); break
+    case 'buyGear': onBuyGear(payload); break
+    case 'feed': onFeedItem(payload); break
+    case 'toggleEquip': onToggleEquip(payload); break
+    case 'addReminder': onAddReminder(payload.text, payload.opts); break
+    case 'removeReminder': onRemoveReminder(payload); break
+    case 'pomodoroStart': onPomodoroStart(); break
+    case 'pomodoroCancel': onPomodoroCancel(); break
+    case 'updateWorkDuration': pomodoroWorkDuration.value = payload; break
+    case 'updateBreakDuration': pomodoroBreakDuration.value = payload; break
+    case 'updateAlwaysOnTop': onToggleAlwaysOnTop(payload); break
+    case 'updateSize': onChangeSize(payload); break
+    case 'updateVolume': onChangeVolume(payload); break
+    case 'updateMuted': onChangeMuted(payload); break
+    case 'updateWeatherCity': onChangeWeatherCity(payload); break
+    case 'updatePassThrough': onTogglePassThrough(payload); break
+    case 'updateAutoStart': onToggleAutoStart(payload); break
+  }
+
+  // Sync updated state back to panel after action
+  if (currentOpenPanel.value) {
+    syncState(getPanelData(currentOpenPanel.value))
+  }
+}
+
+function openPanelFor(panel: string) {
+  openPanel(panel, getPanelData(panel))
+}
 
 // --- Speech bubble ---
 const speechText = ref('')
@@ -437,55 +413,6 @@ const speechVisible = ref(false)
 
 // --- Hover cooldown ---
 let lastHoverSpeechTime = 0
-
-// --- Any popup open ---
-const anyPopupOpen = computed(() =>
-  showShop.value || showFeed.value || showPostcards.value ||
-  showSouvenirs.value || showSettings.value || showWardrobe.value || showReminder.value || showStatus.value || showPomodoro.value
-)
-
-// --- Expand window when popup/menu is open to avoid clipping ---
-const petSizeMap: Record<string, [number, number]> = {
-  small: [160, 180],
-  medium: [240, 260],
-  large: [320, 340],
-}
-const EXPANDED_WIN_SIZE = { w: 600, h: 600 }
-
-const needsExpandedWindow = computed(() =>
-  anyPopupOpen.value
-)
-
-watch(needsExpandedWindow, async (expanded) => {
-  if (isWorkMode.value) return  // Work mode already has a larger window
-  try {
-    const win = getCurrentWindow()
-    let scale = 1.0
-    try { scale = await win.scaleFactor() } catch { /* fallback */ }
-    const petDims = petSizeMap[settings.value.size] ?? [240, 260]
-    // Offsets in physical pixels
-    const offsetX = Math.round((EXPANDED_WIN_SIZE.w - petDims[0]) / 2 * scale)
-    const offsetY = Math.round((EXPANDED_WIN_SIZE.h - petDims[1]) * scale)
-    const pos = await win.outerPosition()
-    if (expanded) {
-      // Atomically expand + reposition in one OS call — no flicker
-      await invoke('set_window_bounds', {
-        x: pos.x - offsetX,
-        y: pos.y - offsetY,
-        width: Math.round(EXPANDED_WIN_SIZE.w * scale),
-        height: Math.round(EXPANDED_WIN_SIZE.h * scale),
-      })
-    } else {
-      // Atomically shrink + reposition
-      await invoke('set_window_bounds', {
-        x: pos.x + offsetX,
-        y: pos.y + offsetY,
-        width: Math.round(petDims[0] * scale),
-        height: Math.round(petDims[1] * scale),
-      })
-    }
-  } catch { /* Not in Tauri */ }
-})
 
 // --- Click debounce ---
 let clickTimer: ReturnType<typeof setTimeout> | null = null
@@ -564,12 +491,10 @@ const visibleFurniture = computed(() => {
 // --- Drag ---
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
-  if (anyPopupOpen.value) return
   try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
 }
 
 function onMissClick(_e: MouseEvent) {
-  if (anyPopupOpen.value) return
   try { getCurrentWindow().startDragging() } catch { /* Not in Tauri */ }
 }
 
@@ -816,7 +741,6 @@ function onFeedItem(foodId: string) {
       showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food?.emoji ?? '🍽️'} ${food?.name ?? foodId}`, message: '看起来很满足~' })
     }
   }
-  showFeed.value = false
 }
 
 function onBuyFood(foodId: string) {
@@ -906,7 +830,6 @@ function onRemoveReminder(id: string) {
 
 function onPomodoroStart() {
   pomodoroStartWork()
-  showPomodoro.value = false
   showToast({ type: 'info', icon: '🍅', title: '番茄钟开始！', message: `专注 ${pomodoroWorkDuration.value} 分钟` })
 }
 
@@ -1017,6 +940,7 @@ watch(mode, (newMode) => {
 let adventureTimer: ReturnType<typeof setInterval> | null = null
 let reminderTimer: ReturnType<typeof setInterval> | null = null
 let boundsTimer: ReturnType<typeof setInterval> | null = null
+let pomodoroSyncTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
 let unlistenTrayAction: (() => void) | null = null
 
@@ -1132,9 +1056,18 @@ onMounted(async () => {
     }
   }, 30000)
   boundsTimer = setInterval(clampToScreen, 10000) // check every 10s
+  // Sync pomodoro state to panel window every second when running
+  pomodoroSyncTimer = setInterval(() => {
+    if (pomodoroIsRunning.value && currentOpenPanel.value === 'pomodoro') {
+      syncState(getPanelData('pomodoro'))
+    }
+  }, 1000)
   if (isOnAdventure.value) {
     setState('adventure_out')
   }
+
+  // Setup panel action listener
+  setupActionListener(handlePanelAction)
 
   // Listen for summon-pet event (from tray menu or global shortcut)
   try {
@@ -1182,31 +1115,15 @@ onMounted(async () => {
       const action = event.payload
       switch (action) {
         case 'feed':
-          showFeed.value = true
-          break
         case 'shop':
-          showShop.value = true
-          break
         case 'postcard':
-          showPostcards.value = true
-          break
         case 'souvenir':
-          showSouvenirs.value = true
-          break
         case 'wardrobe':
-          showWardrobe.value = true
-          break
         case 'reminder':
-          showReminder.value = true
-          break
         case 'status':
-          showStatus.value = true
-          break
         case 'pomodoro':
-          showPomodoro.value = true
-          break
         case 'settings':
-          showSettings.value = true
+          openPanelFor(action)
           break
         case 'toggle-passthrough':
           onTogglePassThrough(!(settings.value.passThrough ?? false))
@@ -1230,9 +1147,11 @@ onUnmounted(() => {
   cancelAnimation()
   pomodoroDestroy()
   stopAutoFetch()
+  destroyActionListener()
   if (adventureTimer) clearInterval(adventureTimer)
   if (reminderTimer) clearInterval(reminderTimer)
   if (boundsTimer) clearInterval(boundsTimer)
+  if (pomodoroSyncTimer) clearInterval(pomodoroSyncTimer)
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
   if (unlistenTrayAction) unlistenTrayAction()

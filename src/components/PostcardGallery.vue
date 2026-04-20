@@ -1,9 +1,8 @@
 <template>
-  <Teleport to="body">
-    <div class="overlay" @click.self="emit('close')">
-      <div class="gallery" @click.stop>
-        <button class="close-btn" @click="emit('close')">✕</button>
-        <h2 class="gallery-title">📮 明信片集</h2>
+  <div class="gallery-wrapper">
+    <div class="gallery" @click.stop>
+      <button class="close-btn" @click="emit('close')">✕</button>
+      <h2 class="gallery-title">📮 明信片集</h2>
         <div class="postcard-grid">
           <div
             v-for="loc in allLocations"
@@ -26,7 +25,6 @@
         <div class="gallery-footer">
           已收集 {{ collectedCount }} / {{ allLocations.length }}
         </div>
-      </div>
     </div>
 
     <Card3DViewer :visible="viewingPostcard !== null" @close="viewingPostcard = null">
@@ -37,7 +35,7 @@
         <div class="postcard-detail-name">{{ getLocationName(viewingPostcard) }}</div>
       </div>
     </Card3DViewer>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -46,7 +44,7 @@ import { locations } from '../data/locations'
 import Card3DViewer from './Card3DViewer.vue'
 
 const props = defineProps<{
-  collectedPostcards: Set<string>
+  collectedPostcards: Set<string> | string[]
 }>()
 
 const emit = defineEmits<{
@@ -55,11 +53,15 @@ const emit = defineEmits<{
 
 const allLocations = locations
 
-const collectedCount = computed(() => props.collectedPostcards.size)
+const collectedCount = computed(() => {
+  const p = props.collectedPostcards
+  return p instanceof Set ? p.size : p.length
+})
 const viewingPostcard = ref<string | null>(null)
 
 function isCollected(id: string): boolean {
-  return props.collectedPostcards.has(id)
+  const p = props.collectedPostcards
+  return p instanceof Set ? p.has(id) : p.includes(id)
 }
 
 function getLocationName(id: string): string {
@@ -332,27 +334,18 @@ function renderScene(locationId: string) {
 </script>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 5000;
-  padding: 10px;
+.gallery-wrapper {
+  width: 100%;
+  height: 100vh;
   overflow-y: auto;
+  background: #FFF8F0;
 }
 
 .gallery {
   background: #FFF8F0;
-  border-radius: 14px;
+  border-radius: 0;
   padding: 16px;
   width: 100%;
-  max-width: 370px;
-  max-height: calc(100vh - 20px);
-  overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(92, 64, 51, 0.25);
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;

@@ -1,5 +1,5 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body, #app {
+html, body, #app, #panel-app {
   background: transparent !important;
   overflow: hidden;
   width: 100%;

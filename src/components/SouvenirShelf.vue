@@ -1,9 +1,8 @@
 <template>
-  <Teleport to="body">
-    <div class="overlay" @click.self="emit('close')">
-      <div class="shelf" @click.stop>
-        <button class="close-btn" @click="emit('close')">✕</button>
-        <h2 class="shelf-title">🎁 纪念品架</h2>
+  <div class="shelf-wrapper">
+    <div class="shelf" @click.stop>
+      <button class="close-btn" @click="emit('close')">✕</button>
+      <h2 class="shelf-title">🎁 纪念品架</h2>
 
         <div v-if="sortedItems.length === 0" class="empty-msg">
           还没有纪念品，让仓仓去冒险吧！
@@ -47,7 +46,6 @@
         <div class="shelf-footer">
           共收集 {{ totalUnique }} 种纪念品
         </div>
-      </div>
     </div>
 
     <Card3DViewer :visible="viewingItem !== null" @close="viewingItem = null">
@@ -57,7 +55,7 @@
         <div class="souvenir-detail-rarity" :class="viewingItem.rarity">{{ rarityLabel(viewingItem.rarity) }}</div>
       </div>
     </Card3DViewer>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -115,27 +113,18 @@ function rarityLabel(rarity: string): string {
 </script>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 5000;
-  padding: 10px;
+.shelf-wrapper {
+  width: 100%;
+  height: 100vh;
   overflow-y: auto;
+  background: #FFF8F0;
 }
 
 .shelf {
   background: #FFF8F0;
-  border-radius: 14px;
+  border-radius: 0;
   padding: 16px;
   width: 100%;
-  max-width: 360px;
-  max-height: calc(100vh - 20px);
-  overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(92, 64, 51, 0.25);
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;

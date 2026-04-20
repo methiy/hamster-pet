@@ -1,9 +1,7 @@
 <template>
-  <Teleport to="body">
-    <div class="overlay" @click.self="emit('close')">
-      <div class="reminder-panel" @click.stop>
-        <button class="close-btn" @click="emit('close')">✕</button>
-        <h2 class="panel-title">📝 备忘录</h2>
+  <div class="reminder-panel" @click.stop>
+    <button class="close-btn" @click="emit('close')">✕</button>
+    <h2 class="panel-title">📝 备忘录</h2>
 
         <!-- Add reminder form -->
         <div class="add-form">
@@ -129,9 +127,7 @@
             <button class="delete-btn" @click="emit('remove', r.id)">🗑️</button>
           </div>
         </div>
-      </div>
-    </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -275,27 +271,13 @@ const canAdd = computed(() => {
 </script>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 5000;
-  padding: 10px;
-  overflow-y: auto;
-}
-
 .reminder-panel {
   background: #FFF8F0;
-  border-radius: 14px;
+  border-radius: 0;
   padding: 16px;
   width: 100%;
-  max-width: 360px;
-  max-height: calc(100vh - 20px);
+  height: 100vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(92, 64, 51, 0.25);
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #5C4033;
