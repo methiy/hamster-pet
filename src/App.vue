@@ -889,6 +889,7 @@ let boundsTimer: ReturnType<typeof setInterval> | null = null
 let pomodoroSyncTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
 let unlistenTrayAction: (() => void) | null = null
+let unlistenRequestData: (() => void) | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1014,6 +1015,15 @@ onMounted(async () => {
   // Setup panel action listener
   setupActionListener(handlePanelAction)
 
+  // Listen for panel:request-data (when user switches tabs in panel)
+  try {
+    unlistenRequestData = await listen<{ panel: string }>('panel:request-data', (event) => {
+      const panel = event.payload.panel
+      currentOpenPanel.value = panel
+      syncState(getPanelData(panel))
+    })
+  } catch { /* Not in Tauri */ }
+
   // Preload panel window in background for instant open
   preloadPanel()
 
@@ -1102,6 +1112,7 @@ onUnmounted(() => {
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
   if (unlistenTrayAction) unlistenTrayAction()
+  if (unlistenRequestData) unlistenRequestData()
 })
 </script>
 

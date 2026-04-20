@@ -48,8 +48,8 @@ async function createPanelWindow(): Promise<WebviewWindow> {
     const win = new WebviewWindow('panel', {
       url: 'panel.html',
       title: '仓鼠宠物',
-      width: 420,
-      height: 520,
+      width: 520,
+      height: 560,
       center: true,
       resizable: true,
       decorations: true,
