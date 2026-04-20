@@ -319,7 +319,7 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
 )
 
 // --- Panel window ---
-const { openPanel, syncState, setupActionListener, destroyActionListener, currentOpenPanel } = usePanelWindow()
+const { preloadPanel, openPanel, syncState, setupActionListener, destroyActionListener, currentOpenPanel } = usePanelWindow()
 
 function getPanelData(panel: string): Record<string, any> {
   switch (panel) {
@@ -1068,6 +1068,9 @@ onMounted(async () => {
 
   // Setup panel action listener
   setupActionListener(handlePanelAction)
+
+  // Preload panel window in background for instant open
+  preloadPanel()
 
   // Listen for summon-pet event (from tray menu or global shortcut)
   try {

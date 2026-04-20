@@ -6,25 +6,15 @@ type PanelActionHandler = (action: string, payload?: any) => void
 
 let panelWindow: WebviewWindow | null = null
 let panelCreating = false
+let panelReady = false
 let unlistenAction: (() => void) | null = null
+let unlistenClose: (() => void) | null = null
 let actionHandler: PanelActionHandler | null = null
 
 // Track current panel for sync purposes
 const currentOpenPanel = ref<string | null>(null)
 
-async function ensurePanelWindow(): Promise<WebviewWindow> {
-  // Check if existing window is still valid
-  if (panelWindow) {
-    try {
-      // Try a simple operation to check if window still exists
-      await panelWindow.isVisible()
-      return panelWindow
-    } catch {
-      // Window was closed/destroyed
-      panelWindow = null
-    }
-  }
-
+async function createPanelWindow(): Promise<WebviewWindow> {
   if (panelCreating) {
     // Wait for creation to complete
     await new Promise<void>((resolve) => {
@@ -50,7 +40,8 @@ async function ensurePanelWindow(): Promise<WebviewWindow> {
       decorations: true,
       transparent: false,
       alwaysOnTop: true,
-      focus: true,
+      focus: false,
+      visible: false, // Start hidden — preload in background
     })
 
     // Wait for the window to be created
@@ -64,10 +55,12 @@ async function ensurePanelWindow(): Promise<WebviewWindow> {
     })
 
     panelWindow = win
+    panelReady = true
 
-    // Listen for window close event to clean up
-    win.once('tauri://destroyed', () => {
-      panelWindow = null
+    // Intercept close: hide instead of destroy so we can reuse instantly
+    unlistenClose = await win.onCloseRequested(async (event) => {
+      event.preventDefault()
+      await win.hide()
       currentOpenPanel.value = null
     })
 
@@ -77,17 +70,31 @@ async function ensurePanelWindow(): Promise<WebviewWindow> {
   }
 }
 
+async function ensurePanelWindow(): Promise<WebviewWindow> {
+  if (panelWindow && panelReady) {
+    return panelWindow
+  }
+  return createPanelWindow()
+}
+
 export function usePanelWindow() {
+
+  /** Preload the panel window in background (call on app mount) */
+  async function preloadPanel() {
+    try {
+      await createPanelWindow()
+    } catch {
+      // Preload failed — will create on first open
+    }
+  }
 
   async function openPanel(panel: string, data: Record<string, any> = {}) {
     try {
       const win = await ensurePanelWindow()
       currentOpenPanel.value = panel
 
-      // Small delay to ensure the panel window's JS is loaded on first open
-      await new Promise(resolve => setTimeout(resolve, 100))
-
       await emitTo('panel', 'panel:open', { panel, data })
+      await win.center()
       await win.show()
       await win.setFocus()
     } catch (e) {
@@ -96,7 +103,7 @@ export function usePanelWindow() {
   }
 
   async function syncState(data: Record<string, any>) {
-    if (!panelWindow) return
+    if (!panelWindow || !panelReady) return
     try {
       await emitTo('panel', 'panel:sync-state', data)
     } catch { /* Panel window may have been closed */ }
@@ -123,10 +130,15 @@ export function usePanelWindow() {
       unlistenAction()
       unlistenAction = null
     }
+    if (unlistenClose) {
+      unlistenClose()
+      unlistenClose = null
+    }
     actionHandler = null
   }
 
   return {
+    preloadPanel,
     openPanel,
     syncState,
     setupActionListener,

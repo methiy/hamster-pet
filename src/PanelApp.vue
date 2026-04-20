@@ -77,8 +77,9 @@ function emitAction(action: string, payload?: any) {
 }
 
 function onClose() {
+  currentPanel.value = null
   try {
-    getCurrentWindow().close()
+    getCurrentWindow().hide()
   } catch {
     window.close()
   }
