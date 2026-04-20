@@ -1,5 +1,5 @@
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
@@ -14,7 +14,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let pomodoro = MenuItemBuilder::with_id("pomodoro", "🍅 番茄钟  Ctrl+Shift+T").build(app)?;
     let settings = MenuItemBuilder::with_id("settings", "⚙️ 设置").build(app)?;
     let about = MenuItemBuilder::with_id("about", "ℹ️ 关于").build(app)?;
-    let passthrough = MenuItemBuilder::with_id("passthrough", "👆 鼠标穿透").build(app)?;
+    let passthrough = CheckMenuItemBuilder::with_id("passthrough", "👆 鼠标穿透").checked(false).build(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItemBuilder::with_id("quit", "❌ 退出").build(app)?;
 
@@ -35,6 +35,9 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let icon = app.default_window_icon().cloned()
         .expect("No default window icon found");
+
+    // Keep a clone of the CheckMenuItem so we can sync state from frontend
+    let passthrough_item = passthrough.clone();
 
     let _tray = TrayIconBuilder::new()
         .icon(icon)
@@ -68,6 +71,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                     let _ = app.emit("tray-action", "about");
                 }
                 "passthrough" => {
+                    // CheckMenuItem auto-toggles its state on click
                     let _ = app.emit("tray-action", "toggle-passthrough");
                 }
                 "quit" => {
@@ -93,6 +97,14 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+
+    // Listen for passthrough state sync from frontend (when toggled in Settings panel)
+    let pt = passthrough_item.clone();
+    app.listen("sync-passthrough", move |event| {
+        if let Ok(checked) = serde_json::from_str::<bool>(event.payload()) {
+            let _ = pt.set_checked(checked);
+        }
+    });
 
     Ok(())
 }

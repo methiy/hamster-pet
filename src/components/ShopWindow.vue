@@ -33,51 +33,6 @@
           </div>
         </div>
 
-        <div v-if="activeTab === 'decoration'" class="items-grid">
-          <div v-for="deco in decorations" :key="deco.id" class="item-card">
-            <img class="item-icon" :src="deco.icon" :alt="deco.name" />
-            <span class="item-name">{{ deco.name }}</span>
-            <span class="item-price">🪙 {{ deco.price }}</span>
-            <div v-if="deco.buff" class="item-effect">{{ getBuffText(deco.buff) }}</div>
-            <button
-              v-if="!ownedDecorations.includes(deco.id)"
-              class="buy-btn"
-              :disabled="coins < deco.price"
-              @click="emit('buyDecoration', deco.id)"
-            >
-              购买
-            </button>
-            <span v-else class="owned-badge">已拥有 ✓</span>
-          </div>
-        </div>
-
-        <div v-if="activeTab === 'furniture'" class="items-grid">
-          <div v-for="furn in furnitureItems" :key="furn.id" class="item-card" :class="{ enabled: enabledFurniture.includes(furn.id) }">
-            <img class="item-icon" :src="furn.icon" :alt="furn.name" />
-            <span class="item-name">{{ furn.name }}</span>
-            <span class="item-price">🪙 {{ furn.price }}</span>
-            <div v-if="furn.buff || furn.offlineCoinCap" class="item-effect">
-              {{ getFurnitureBuffText(furn) }}
-            </div>
-            <button
-              v-if="!ownedFurniture.includes(furn.id)"
-              class="buy-btn"
-              :disabled="coins < furn.price"
-              @click="emit('buyFurniture', furn.id)"
-            >
-              购买
-            </button>
-            <button
-              v-else
-              class="toggle-btn"
-              :class="{ active: enabledFurniture.includes(furn.id) }"
-              @click="emit('toggleFurniture', furn.id)"
-            >
-              {{ enabledFurniture.includes(furn.id) ? '✓ 使用中' : '未启用' }}
-            </button>
-          </div>
-        </div>
-
         <div v-if="activeTab === 'gear'" class="items-grid">
           <div v-for="gear in gearItems" :key="gear.id" class="item-card">
             <img class="item-icon" :src="gear.icon" :alt="gear.name" />
@@ -101,11 +56,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { foods } from '../data/foods'
-import { decorations } from '../data/decorations'
-import { furniture } from '../data/furniture'
 import { gearIcons } from '../data/icons'
-import type { BuffEffect } from '../data/decorations'
-import type { Furniture } from '../data/furniture'
 
 const props = defineProps<{
   coins: number
@@ -114,30 +65,20 @@ const props = defineProps<{
   hasTreasureMap: boolean
   hasBoatTicket: boolean
   hasTelescope: boolean
-  ownedDecorations: string[]
-  ownedFurniture: string[]
-  enabledFurniture: string[]
 }>()
 
 const emit = defineEmits<{
   close: []
   buyFood: [foodId: string]
-  buyDecoration: [decoId: string]
-  buyFurniture: [furnId: string]
   buyGear: [gearId: string]
-  toggleFurniture: [furnId: string]
 }>()
 
-const activeTab = ref<'food' | 'decoration' | 'furniture' | 'gear'>('food')
+const activeTab = ref<'food' | 'gear'>('food')
 
 const tabs = [
   { key: 'food' as const, icon: '🍽️', label: '食物' },
-  { key: 'decoration' as const, icon: '👒', label: '装饰' },
-  { key: 'furniture' as const, icon: '🏠', label: '家具' },
   { key: 'gear' as const, icon: '🎒', label: '装备' },
 ]
-
-const furnitureItems = furniture
 
 const gearItems = computed(() => [
   { id: 'tent', emoji: '⛺', icon: gearIcons.tent, name: '帐篷', price: 100, unlocks: '森林', owned: props.hasTent },
@@ -146,21 +87,6 @@ const gearItems = computed(() => [
   { id: 'boat_ticket', emoji: '🎫', icon: gearIcons.boat_ticket, name: '船票', price: 180, unlocks: '神秘海岛', owned: props.hasBoatTicket },
   { id: 'telescope', emoji: '🔭', icon: gearIcons.telescope, name: '望远镜', price: 200, unlocks: '星空天文台', owned: props.hasTelescope },
 ])
-
-function getBuffText(buff: BuffEffect): string {
-  if (buff.coinMultiplier) return `💰 金币 +${buff.coinMultiplier * 100}%`
-  if (buff.adventureTimeReduction) return `⏱️ 冒险时间 -${buff.adventureTimeReduction * 100}%`
-  if (buff.souvenirChanceBonus) return `🎁 纪念品 +${buff.souvenirChanceBonus * 100}%`
-  if (buff.adventureCoinBonus) return `💰 冒险金币 +${buff.adventureCoinBonus * 100}%`
-  return ''
-}
-
-function getFurnitureBuffText(furn: Furniture): string {
-  if (furn.buff?.coinMultiplier) return `💰 金币 +${furn.buff.coinMultiplier * 100}%`
-  if (furn.buff?.adventureCoinBonus) return `💰 冒险金币 +${furn.buff.adventureCoinBonus * 100}%`
-  if (furn.offlineCoinCap) return `💤 离线上限 ${furn.offlineCoinCap}`
-  return ''
-}
 </script>
 
 <style scoped>
@@ -291,34 +217,5 @@ function getFurnitureBuffText(furn: Furniture): string {
   font-size: 12px;
   color: #6ab04c;
   font-weight: 600;
-}
-
-.toggle-btn {
-  margin-top: 4px;
-  padding: 4px 12px;
-  border: 1px solid rgba(92, 64, 51, 0.2);
-  border-radius: 6px;
-  background: white;
-  color: #A08060;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.toggle-btn.active {
-  background: #6ab04c;
-  color: white;
-  border-color: #6ab04c;
-}
-
-.toggle-btn:hover:not(.active) {
-  border-color: #F2A65A;
-  color: #F2A65A;
-}
-
-.item-card.enabled {
-  border: 2px solid #6ab04c;
-  background: rgba(106, 176, 76, 0.05);
 }
 </style>

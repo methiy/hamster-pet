@@ -21,12 +21,8 @@
         v-bind="panelProps"
         @close="onClose"
         @buy-food="emitAction('buyFood', $event)"
-        @buy-decoration="emitAction('buyDecoration', $event)"
-        @buy-furniture="emitAction('buyFurniture', $event)"
-        @toggle-furniture="emitAction('toggleFurniture', $event)"
         @buy-gear="emitAction('buyGear', $event)"
         @feed="emitAction('feed', $event)"
-        @toggle-equip="emitAction('toggleEquip', $event)"
         @add="(text: string, opts: any) => emitAction('addReminder', { text, opts })"
         @remove="emitAction('removeReminder', $event)"
         @start="emitAction('pomodoroStart')"
@@ -61,7 +57,6 @@ import ShopWindow from './components/ShopWindow.vue'
 import FeedMenu from './components/FeedMenu.vue'
 import PostcardGallery from './components/PostcardGallery.vue'
 import SouvenirShelf from './components/SouvenirShelf.vue'
-import WardrobePanel from './components/WardrobePanel.vue'
 import ReminderPanel from './components/ReminderPanel.vue'
 import StatusPanel from './components/StatusPanel.vue'
 import PomodoroPanel from './components/PomodoroPanel.vue'
@@ -73,7 +68,6 @@ const tabs = [
   { key: 'feed', icon: '🍽️', label: '喂食' },
   { key: 'postcard', icon: '📮', label: '明信片' },
   { key: 'souvenir', icon: '🎁', label: '纪念品' },
-  { key: 'wardrobe', icon: '👗', label: '衣柜' },
   { key: 'reminder', icon: '📝', label: '备忘' },
   { key: 'status', icon: '📊', label: '状态' },
   { key: 'pomodoro', icon: '🍅', label: '番茄钟' },
@@ -86,7 +80,6 @@ const panelMap: Record<string, Component> = {
   feed: FeedMenu,
   postcard: PostcardGallery,
   souvenir: SouvenirShelf,
-  wardrobe: WardrobePanel,
   reminder: ReminderPanel,
   status: StatusPanel,
   pomodoro: PomodoroPanel,

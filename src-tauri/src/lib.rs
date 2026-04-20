@@ -83,7 +83,6 @@ fn show_context_menu(window: tauri::Window) {
         .item(&MenuItemBuilder::with_id("ctx_shop", "🏪 商店").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_postcard", "📮 明信片").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_souvenir", "🎁 纪念品").build(app).unwrap())
-        .item(&MenuItemBuilder::with_id("ctx_wardrobe", "👗 衣柜").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_reminder", "📝 备忘").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_status", "📊 状态").build(app).unwrap())
         .item(&PredefinedMenuItem::separator(app).unwrap())
@@ -157,7 +156,6 @@ pub fn run() {
                     "ctx_shop" => { let _ = menu_handle.emit("tray-action", "shop"); }
                     "ctx_postcard" => { let _ = menu_handle.emit("tray-action", "postcard"); }
                     "ctx_souvenir" => { let _ = menu_handle.emit("tray-action", "souvenir"); }
-                    "ctx_wardrobe" => { let _ = menu_handle.emit("tray-action", "wardrobe"); }
                     "ctx_reminder" => { let _ = menu_handle.emit("tray-action", "reminder"); }
                     "ctx_status" => { let _ = menu_handle.emit("tray-action", "status"); }
                     "ctx_pomodoro" => { let _ = menu_handle.emit("tray-action", "pomodoro"); }

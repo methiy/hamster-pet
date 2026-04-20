@@ -37,26 +37,6 @@
         <div class="hamster-spacer"></div>
 
         <div class="hamster-area" :class="pushAnimationClasses">
-          <div class="decoration-layer">
-            <img
-              v-for="deco in visibleDecorations"
-              :key="deco.id"
-              class="decoration-img"
-              :src="deco.icon"
-              :alt="deco.id"
-              :style="deco.style"
-            />
-          </div>
-
-          <img
-            v-for="furn in visibleFurniture"
-            :key="furn.id"
-            class="furniture-img"
-            :src="furn.icon"
-            :alt="furn.id"
-            :style="furn.style"
-          />
-
           <HamsterSprite
             :state="displayState"
             @region-click="onRegionClick"
@@ -77,7 +57,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import HamsterSprite from './components/HamsterSprite.vue'
@@ -107,8 +87,6 @@ import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { SUMMON_PHRASES } from './data/activityPhrases'
-import { decorations } from './data/decorations'
-import { furniture } from './data/furniture'
 import { foods } from './data/foods'
 
 // --- Settings ---
@@ -181,22 +159,14 @@ let lastWeatherCondition: string | null = null
 const {
   coins,
   ownedFoods,
-  ownedDecorations,
-  equippedDecorations,
-  ownedFurniture,
-  enabledFurniture,
   buyFood,
   useFood,
   getFoodDetails,
-  buyDecoration,
-  toggleEquipDecoration,
-  buyFurniture,
-  toggleEnableFurniture,
   startCoinTimer,
   stopCoinTimer,
 } = useInventory()
 
-const { buffValues } = useBuff(equippedDecorations, enabledFurniture)
+const { buffValues } = useBuff()
 
 const {
   isOnAdventure,
@@ -221,10 +191,6 @@ const { save, load, startAutoSave, stopAutoSave } = useSave(coins, ownedFoods, {
   getAdventureData,
   loadAdventureData,
 }, {
-  ownedDecorations,
-  equippedDecorations,
-  ownedFurniture,
-  enabledFurniture,
   settings,
   offlineCoinCap,
 }, {
@@ -312,9 +278,6 @@ function getPanelData(panel: string): Record<string, any> {
         hasTreasureMap: hasTreasureMap.value,
         hasBoatTicket: hasBoatTicket.value,
         hasTelescope: hasTelescope.value,
-        ownedDecorations: ownedDecorations.value,
-        ownedFurniture: ownedFurniture.value,
-        enabledFurniture: enabledFurniture.value,
       }
     case 'feed':
       return { ownedFoods: ownedFoods.value }
@@ -322,11 +285,6 @@ function getPanelData(panel: string): Record<string, any> {
       return { collectedPostcards: [...collectedPostcards.value] }
     case 'souvenir':
       return { collectedSouvenirs: collectedSouvenirs.value }
-    case 'wardrobe':
-      return {
-        ownedDecorations: ownedDecorations.value,
-        equippedDecorations: equippedDecorations.value,
-      }
     case 'reminder':
       return { reminders: reminders.value }
     case 'status':
@@ -364,12 +322,8 @@ function getPanelData(panel: string): Record<string, any> {
 function handlePanelAction(action: string, payload?: any) {
   switch (action) {
     case 'buyFood': onBuyFood(payload); break
-    case 'buyDecoration': onBuyDecoration(payload); break
-    case 'buyFurniture': onBuyFurniture(payload); break
-    case 'toggleFurniture': toggleEnableFurniture(payload); break
     case 'buyGear': onBuyGear(payload); break
     case 'feed': onFeedItem(payload); break
-    case 'toggleEquip': onToggleEquip(payload); break
     case 'addReminder': onAddReminder(payload.text, payload.opts); break
     case 'removeReminder': onRemoveReminder(payload); break
     case 'pomodoroStart': onPomodoroStart(); break
@@ -437,48 +391,6 @@ const pushAnimationClasses = computed(() => {
     // Walking back: flip to face return direction
     'hamster-flipped': isWalkingBack.value || (isWalking.value && dir === 'right') || (pushing && dir === 'left'),
   }
-})
-
-// --- Visible decorations ---
-const decoPositionStyles: Record<string, Record<string, string>> = {
-  head_top: { position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '24px', height: '24px', pointerEvents: 'none', zIndex: '10' },
-  face: { position: 'absolute', top: '35px', left: '50%', transform: 'translateX(-50%)', width: '20px', height: '20px', pointerEvents: 'none', zIndex: '10' },
-  ear: { position: 'absolute', top: '8px', right: '18px', width: '18px', height: '18px', pointerEvents: 'none', zIndex: '10' },
-  neck: { position: 'absolute', top: '55px', left: '50%', transform: 'translateX(-50%)', width: '18px', height: '18px', pointerEvents: 'none', zIndex: '10' },
-  back: { position: 'absolute', top: '40px', right: '10px', width: '20px', height: '20px', pointerEvents: 'none', zIndex: '10' },
-}
-
-const visibleDecorations = computed(() => {
-  return equippedDecorations.value.map(id => {
-    const deco = decorations.find(d => d.id === id)
-    return {
-      id,
-      emoji: deco?.emoji ?? '?',
-      icon: deco?.icon ?? '',
-      style: decoPositionStyles[deco?.slot ?? 'head_top'] ?? {},
-    }
-  })
-})
-
-// --- Visible furniture ---
-const furnPositionStyles: Record<string, Record<string, string>> = {
-  right: { position: 'absolute', right: '-30px', bottom: '0', width: '32px', height: '32px', pointerEvents: 'none' },
-  left: { position: 'absolute', left: '-30px', bottom: '0', width: '32px', height: '32px', pointerEvents: 'none' },
-  upper_right: { position: 'absolute', right: '-25px', top: '-10px', width: '28px', height: '28px', pointerEvents: 'none' },
-  lower_left: { position: 'absolute', left: '-25px', bottom: '-5px', width: '26px', height: '26px', pointerEvents: 'none' },
-  lower_right: { position: 'absolute', right: '-25px', bottom: '-5px', width: '28px', height: '28px', pointerEvents: 'none' },
-}
-
-const visibleFurniture = computed(() => {
-  return enabledFurniture.value.map(id => {
-    const furn = furniture.find(f => f.id === id)
-    return {
-      id,
-      emoji: furn?.emoji ?? '?',
-      icon: furn?.icon ?? '',
-      style: furnPositionStyles[furn?.position ?? 'right'] ?? {},
-    }
-  })
 })
 
 // --- Drag ---
@@ -751,36 +663,6 @@ function onBuyFood(foodId: string) {
   }
 }
 
-function onBuyDecoration(decoId: string) {
-  const deco = decorations.find(d => d.id === decoId)
-  if (!deco) return
-  if (coins.value < deco.price) {
-    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${deco.price - coins.value} 金币` })
-    return
-  }
-  if (buyDecoration(decoId)) {
-    const buffText = deco.buff
-      ? (deco.buff.coinMultiplier ? `金币收入 +${deco.buff.coinMultiplier * 100}%` :
-         deco.buff.adventureTimeReduction ? `冒险时间 -${deco.buff.adventureTimeReduction * 100}%` :
-         deco.buff.souvenirChanceBonus ? `纪念品概率 +${deco.buff.souvenirChanceBonus * 100}%` :
-         deco.buff.adventureCoinBonus ? `冒险金币 +${deco.buff.adventureCoinBonus * 100}%` : '')
-      : ''
-    showToast({ type: 'success', icon: '🎉', title: `获得 ${deco.emoji} ${deco.name}！`, message: buffText || undefined })
-  }
-}
-
-function onBuyFurniture(furnId: string) {
-  const furn = furniture.find(f => f.id === furnId)
-  if (!furn) return
-  if (coins.value < furn.price) {
-    showToast({ type: 'warning', icon: '⚠️', title: '金币不够啦~', message: `还差 ${furn.price - coins.value} 金币` })
-    return
-  }
-  if (buyFurniture(furnId)) {
-    showToast({ type: 'success', icon: '🎉', title: `获得 ${furn.emoji} ${furn.name}！`, message: furn.buff ? '属性加成已生效' : undefined })
-  }
-}
-
 function onBuyGear(gearId: string) {
   const gearMap: Record<string, { price: number; flag: () => void; emoji: string; name: string; unlocks: string }> = {
     tent: { price: 100, flag: () => { hasTent.value = true }, emoji: '⛺', name: '帐篷', unlocks: '森林' },
@@ -799,10 +681,6 @@ function onBuyGear(gearId: string) {
   coins.value -= gear.price
   gear.flag()
   showToast({ type: 'success', icon: '🎉', title: `获得 ${gear.emoji} ${gear.name}！`, message: `解锁 ${gear.unlocks}` })
-}
-
-function onToggleEquip(decoId: string) {
-  toggleEquipDecoration(decoId)
 }
 
 function onAddReminder(text: string, opts: {
@@ -863,10 +741,29 @@ function onChangeWeatherCity(value: string) {
   }
 }
 
+async function shakeWindow() {
+  try {
+    const win = getCurrentWindow()
+    const pos = await win.outerPosition()
+    const origX = pos.x
+    const origY = pos.y
+    const offsets = [
+      [6, 0], [-6, 0], [0, 6], [0, -6],
+      [4, 0], [-4, 0], [0, 4], [0, -4],
+      [2, 0], [-2, 0], [0, 0],
+    ]
+    for (const [dx, dy] of offsets) {
+      await win.setPosition(new PhysicalPosition(origX + dx, origY + dy))
+      await new Promise(r => setTimeout(r, 40))
+    }
+  } catch { /* Not in Tauri */ }
+}
+
 function onTogglePassThrough(value: boolean) {
   settings.value = { ...settings.value, passThrough: value }
   try {
     getCurrentWindow().setIgnoreCursorEvents(value)
+    tauriEmit('sync-passthrough', value)
   } catch { /* Not in Tauri */ }
 }
 
@@ -939,7 +836,10 @@ onMounted(async () => {
 
   // Restore pass-through state
   if (settings.value.passThrough) {
-    try { getCurrentWindow().setIgnoreCursorEvents(true) } catch { /* Not in Tauri */ }
+    try {
+      getCurrentWindow().setIgnoreCursorEvents(true)
+      tauriEmit('sync-passthrough', true)
+    } catch { /* Not in Tauri */ }
   }
 
   // Sync autostart state with actual system state
@@ -996,6 +896,7 @@ onMounted(async () => {
       showSpeechText(`📝 备忘提醒：${r.text}`)
       showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
       playSound('notification')
+      shakeWindow()
     }
   }, 30000)
   // Clamp after window is moved (e.g. user drags pet off-screen)
@@ -1081,7 +982,6 @@ onMounted(async () => {
         case 'shop':
         case 'postcard':
         case 'souvenir':
-        case 'wardrobe':
         case 'reminder':
         case 'status':
         case 'pomodoro':
