@@ -23,6 +23,9 @@
       @update:weather-city="emitAction('updateWeatherCity', $event)"
       @update:pass-through="emitAction('updatePassThrough', $event)"
       @update:auto-start="emitAction('updateAutoStart', $event)"
+      @update:activity-reaction-enabled="emitAction('updateActivityReactionEnabled', $event)"
+      @update:activity-push-enabled="emitAction('updateActivityPushEnabled', $event)"
+      @update:activity-check-interval="emitAction('updateActivityCheckInterval', $event)"
     />
   </div>
   <div v-else class="panel-loading">

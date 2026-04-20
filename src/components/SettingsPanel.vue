@@ -74,6 +74,43 @@
           </label>
         </div>
 
+        <div class="section-divider">
+          <h3 class="section-label">🐹 互动行为</h3>
+        </div>
+
+        <div class="setting-row">
+          <span class="setting-label">💬 活动提醒</span>
+          <label class="toggle">
+            <input type="checkbox" :checked="activityReactionEnabled" @change="emit('update:activityReactionEnabled', !activityReactionEnabled)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-hint">检测到看视频、打游戏等时弹气泡提醒</div>
+
+        <div v-if="activityReactionEnabled" class="setting-row">
+          <span class="setting-label">🫸 推窗口/暂停</span>
+          <label class="toggle">
+            <input type="checkbox" :checked="activityPushEnabled" @change="emit('update:activityPushEnabled', !activityPushEnabled)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div v-if="activityReactionEnabled" class="setting-hint">仓鼠会跑去推窗口或帮你暂停视频</div>
+
+        <div v-if="activityReactionEnabled" class="setting-row">
+          <span class="setting-label">⏱️ 提醒间隔</span>
+          <div class="interval-selector">
+            <button
+              v-for="opt in intervalOptions"
+              :key="opt.value"
+              class="size-btn"
+              :class="{ active: activityCheckInterval === opt.value }"
+              @click="emit('update:activityCheckInterval', opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
         <div class="about-section">
           <div class="about-text">仓鼠宠物 v0.7.0</div>
           <div class="about-heart">❤️</div>
@@ -110,6 +147,9 @@ defineProps<{
   weatherCity: string
   passThrough: boolean
   autoStart: boolean
+  activityReactionEnabled: boolean
+  activityPushEnabled: boolean
+  activityCheckInterval: number
 }>()
 
 const emit = defineEmits<{
@@ -121,12 +161,22 @@ const emit = defineEmits<{
   'update:weatherCity': [value: string]
   'update:passThrough': [value: boolean]
   'update:autoStart': [value: boolean]
+  'update:activityReactionEnabled': [value: boolean]
+  'update:activityPushEnabled': [value: boolean]
+  'update:activityCheckInterval': [value: number]
 }>()
 
 const sizeOptions = [
   { value: 'small', label: '小' },
   { value: 'medium', label: '中' },
   { value: 'large', label: '大' },
+]
+
+const intervalOptions = [
+  { value: 10, label: '10秒' },
+  { value: 15, label: '15秒' },
+  { value: 30, label: '30秒' },
+  { value: 60, label: '1分钟' },
 ]
 </script>
 
@@ -358,5 +408,22 @@ const sizeOptions = [
   color: #B08060;
   padding: 2px 0 6px;
   border-bottom: 1px solid rgba(92, 64, 51, 0.1);
+}
+
+.section-divider {
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+
+.section-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #5C4033;
+  margin: 0;
+}
+
+.interval-selector {
+  display: flex;
+  gap: 4px;
 }
 </style>

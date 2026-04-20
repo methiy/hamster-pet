@@ -9,9 +9,21 @@ interface ReactionCallbacks {
   startVideoPause: () => void
 }
 
+interface ReactionSettings {
+  /** Whether speech reactions are enabled */
+  reactionEnabled: Ref<boolean>
+  /** Whether push/pause actions are enabled */
+  pushEnabled: Ref<boolean>
+  /** Check interval in seconds */
+  checkInterval: Ref<number>
+  /** Callback when first push happens (for hint) */
+  onFirstPush?: () => void
+}
+
 export function useActivityReaction(
   currentActivity: Ref<ActivityType>,
   callbacks: ReactionCallbacks,
+  reactionSettings: ReactionSettings,
 ) {
   /** Per-activity cooldown timestamps */
   const cooldowns = ref<Record<string, number>>({})
@@ -23,6 +35,9 @@ export function useActivityReaction(
   let delayTimer: ReturnType<typeof setTimeout> | null = null
   /** Periodic check timer */
   let checkTimer: ReturnType<typeof setInterval> | null = null
+
+  /** Track if we've done first push (for hint) */
+  let hasShownFirstPushHint = false
 
   function isOnCooldown(activity: ActivityType): boolean {
     const lastTime = cooldowns.value[activity]
@@ -41,6 +56,8 @@ export function useActivityReaction(
   }
 
   function tryReact(activity: ActivityType) {
+    // If reactions are disabled, skip entirely
+    if (!reactionSettings.reactionEnabled.value) return
     if (isReacting.value) return
     if (isOnCooldown(activity)) return
 
@@ -52,16 +69,29 @@ export function useActivityReaction(
     // Random delay 1-3 seconds for natural feel
     const delay = 1000 + Math.random() * 2000
     delayTimer = setTimeout(() => {
+      // Check if push actions are enabled
+      const pushAllowed = reactionSettings.pushEnabled.value
+
       // For video activity, prefer video pause over push
-      if (activity === 'video' && config.pushChance > 0 && Math.random() < config.pushChance) {
+      if (pushAllowed && activity === 'video' && config.pushChance > 0 && Math.random() < config.pushChance) {
+        // First push hint
+        if (!hasShownFirstPushHint) {
+          hasShownFirstPushHint = true
+          reactionSettings.onFirstPush?.()
+        }
         // Video pause sequence — run to center, pause video, come back
         callbacks.startVideoPause()
         // isReacting will be reset when the animation completes
       } else {
         // Decide: simple complaint or push window
-        const shouldPush = config.pushChance > 0 && Math.random() < config.pushChance
+        const shouldPush = pushAllowed && config.pushChance > 0 && Math.random() < config.pushChance
 
         if (shouldPush) {
+          // First push hint
+          if (!hasShownFirstPushHint) {
+            hasShownFirstPushHint = true
+            reactionSettings.onFirstPush?.()
+          }
           // Push window sequence - the push animation will handle speech
           callbacks.startPush(activity)
           // isReacting will be reset when push animation completes
@@ -91,9 +121,22 @@ export function useActivityReaction(
 
   // Also periodically check (in case activity stays the same for a long time)
   function startPeriodicCheck() {
+    restartCheckTimer()
+  }
+
+  // Restart the timer when interval setting changes
+  watch(reactionSettings.checkInterval, () => {
+    if (checkTimer) {
+      restartCheckTimer()
+    }
+  })
+
+  function restartCheckTimer() {
+    if (checkTimer) clearInterval(checkTimer)
+    const intervalMs = reactionSettings.checkInterval.value * 1000
     checkTimer = setInterval(() => {
       tryReact(currentActivity.value)
-    }, 15000) // Check every 15 seconds
+    }, intervalMs)
   }
 
   function stopPeriodicCheck() {

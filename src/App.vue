@@ -266,6 +266,18 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
   },
 })
 
+// --- Activity reaction settings (derived from settings ref) ---
+const activityReactionEnabled = computed(() => settings.value.activityReactionEnabled ?? true)
+const activityPushEnabled = computed(() => settings.value.activityPushEnabled ?? true)
+const activityCheckInterval = computed(() => settings.value.activityCheckInterval ?? 15)
+
+const activityReactionEnabledRef = ref(activityReactionEnabled.value)
+const activityPushEnabledRef = ref(activityPushEnabled.value)
+const activityCheckIntervalRef = ref(activityCheckInterval.value)
+watch(activityReactionEnabled, v => { activityReactionEnabledRef.value = v })
+watch(activityPushEnabled, v => { activityPushEnabledRef.value = v })
+watch(activityCheckInterval, v => { activityCheckIntervalRef.value = v })
+
 const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReaction(
   currentActivity,
   {
@@ -276,6 +288,14 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
     },
     startVideoPause: () => {
       startVideoPause(windowInfo.value?.rect ?? null, windowInfo.value?.process_name)
+    },
+  },
+  {
+    reactionEnabled: activityReactionEnabledRef,
+    pushEnabled: activityPushEnabledRef,
+    checkInterval: activityCheckIntervalRef,
+    onFirstPush: () => {
+      showSpeechText('主人~如果不想被打扰，可以去设置里关闭互动哦~')
     },
   },
 )
@@ -330,6 +350,9 @@ function getPanelData(panel: string): Record<string, any> {
         weatherCity: settings.value.weatherCity ?? '',
         passThrough: settings.value.passThrough ?? false,
         autoStart: settings.value.autoStart ?? false,
+        activityReactionEnabled: settings.value.activityReactionEnabled ?? true,
+        activityPushEnabled: settings.value.activityPushEnabled ?? true,
+        activityCheckInterval: settings.value.activityCheckInterval ?? 15,
       }
     default:
       return {}
@@ -357,6 +380,9 @@ function handlePanelAction(action: string, payload?: any) {
     case 'updateWeatherCity': onChangeWeatherCity(payload); break
     case 'updatePassThrough': onTogglePassThrough(payload); break
     case 'updateAutoStart': onToggleAutoStart(payload); break
+    case 'updateActivityReactionEnabled': settings.value = { ...settings.value, activityReactionEnabled: payload }; break
+    case 'updateActivityPushEnabled': settings.value = { ...settings.value, activityPushEnabled: payload }; break
+    case 'updateActivityCheckInterval': settings.value = { ...settings.value, activityCheckInterval: payload }; break
   }
 
   // Sync updated state back to panel after action

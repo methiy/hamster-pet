@@ -10,6 +10,12 @@ export interface SettingsData {
   weatherCity?: string
   passThrough?: boolean
   autoStart?: boolean
+  /** Enable activity speech reactions (default true) */
+  activityReactionEnabled?: boolean
+  /** Enable push/pause window actions (default true) */
+  activityPushEnabled?: boolean
+  /** Activity check interval in seconds (default 15) */
+  activityCheckInterval?: number
 }
 
 interface SaveData {
