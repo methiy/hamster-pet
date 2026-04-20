@@ -15,6 +15,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let status = MenuItemBuilder::with_id("status", "📊 状态").build(app)?;
     let pomodoro = MenuItemBuilder::with_id("pomodoro", "🍅 番茄钟  Ctrl+Shift+T").build(app)?;
     let settings = MenuItemBuilder::with_id("settings", "⚙️ 设置").build(app)?;
+    let passthrough = MenuItemBuilder::with_id("passthrough", "👆 鼠标穿透").build(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItemBuilder::with_id("quit", "❌ 退出").build(app)?;
 
@@ -29,6 +30,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .item(&status)
         .item(&pomodoro)
         .item(&settings)
+        .item(&passthrough)
         .item(&sep2)
         .item(&quit)
         .build()?;
@@ -69,6 +71,9 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
                 "settings" => {
                     let _ = app.emit("tray-action", "settings");
+                }
+                "passthrough" => {
+                    let _ = app.emit("tray-action", "toggle-passthrough");
                 }
                 "quit" => {
                     app.exit(0);

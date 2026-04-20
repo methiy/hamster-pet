@@ -8,6 +8,8 @@ export interface SettingsData {
   volume?: number
   muted?: boolean
   weatherCity?: string
+  passThrough?: boolean
+  autoStart?: boolean
 }
 
 interface SaveData {

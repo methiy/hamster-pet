@@ -34,6 +34,15 @@
         </div>
 
         <div class="setting-row">
+          <span class="setting-label">👆 鼠标穿透</span>
+          <label class="toggle">
+            <input type="checkbox" :checked="passThrough" @change="emit('update:passThrough', !passThrough)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div v-if="passThrough" class="setting-hint">右键托盘图标可关闭穿透</div>
+
+        <div class="setting-row">
           <span class="setting-label">📐 大小</span>
           <div class="size-selector">
             <button
@@ -57,6 +66,14 @@
             placeholder="如: Beijing"
             @change="emit('update:weatherCity', ($event.target as HTMLInputElement).value)"
           />
+        </div>
+
+        <div class="setting-row">
+          <span class="setting-label">🚀 开机自启</span>
+          <label class="toggle">
+            <input type="checkbox" :checked="autoStart" @change="emit('update:autoStart', !autoStart)" />
+            <span class="toggle-slider"></span>
+          </label>
         </div>
 
         <div class="about-section">
@@ -95,6 +112,8 @@ defineProps<{
   volume: number
   muted: boolean
   weatherCity: string
+  passThrough: boolean
+  autoStart: boolean
 }>()
 
 const emit = defineEmits<{
@@ -104,6 +123,8 @@ const emit = defineEmits<{
   'update:volume': [value: number]
   'update:muted': [value: boolean]
   'update:weatherCity': [value: string]
+  'update:passThrough': [value: boolean]
+  'update:autoStart': [value: boolean]
 }>()
 
 const sizeOptions = [
@@ -348,5 +369,12 @@ const sizeOptions = [
   font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
   color: #5C4033;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: #B08060;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid rgba(92, 64, 51, 0.1);
 }
 </style>

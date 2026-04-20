@@ -196,12 +196,16 @@
       :volume="settings.volume ?? 70"
       :muted="settings.muted ?? false"
       :weather-city="settings.weatherCity ?? ''"
+      :pass-through="settings.passThrough ?? false"
+      :auto-start="settings.autoStart ?? false"
       @close="showSettings = false"
       @update:always-on-top="onToggleAlwaysOnTop"
       @update:size="onChangeSize"
       @update:volume="onChangeVolume"
       @update:muted="onChangeMuted"
       @update:weather-city="onChangeWeatherCity"
+      @update:pass-through="onTogglePassThrough"
+      @update:auto-start="onToggleAutoStart"
     />
 
     <ToastNotification />
@@ -1070,6 +1074,22 @@ function onChangeWeatherCity(value: string) {
   }
 }
 
+function onTogglePassThrough(value: boolean) {
+  settings.value = { ...settings.value, passThrough: value }
+  try {
+    getCurrentWindow().setIgnoreCursorEvents(value)
+  } catch { /* Not in Tauri */ }
+}
+
+async function onToggleAutoStart(value: boolean) {
+  settings.value = { ...settings.value, autoStart: value }
+  try {
+    const { enable, disable } = await import('@tauri-apps/plugin-autostart')
+    if (value) await enable()
+    else await disable()
+  } catch { /* Not in Tauri or plugin not available */ }
+}
+
 async function onQuit() {
   closeMenu()
   save()
@@ -1142,6 +1162,18 @@ onMounted(async () => {
   if (settings.value.alwaysOnTop) {
     try { getCurrentWindow().setAlwaysOnTop(true) } catch { /* Not in Tauri */ }
   }
+
+  // Restore pass-through state
+  if (settings.value.passThrough) {
+    try { getCurrentWindow().setIgnoreCursorEvents(true) } catch { /* Not in Tauri */ }
+  }
+
+  // Sync autostart state with actual system state
+  try {
+    const { isEnabled } = await import('@tauri-apps/plugin-autostart')
+    const actual = await isEnabled()
+    settings.value = { ...settings.value, autoStart: actual }
+  } catch { /* Not in Tauri or plugin not available */ }
 
   if (offlineCoins > 0) {
     showToast({ type: 'info', icon: 'ℹ️', title: `离开了 ${offlineMinutes} 分钟`, message: `获得 ${offlineCoins} 金币` })
@@ -1260,6 +1292,9 @@ onMounted(async () => {
           break
         case 'settings':
           showSettings.value = true
+          break
+        case 'toggle-passthrough':
+          onTogglePassThrough(!(settings.value.passThrough ?? false))
           break
       }
     })
