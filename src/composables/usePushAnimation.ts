@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { invoke } from '@tauri-apps/api/core'
 import { ACTIVITY_PHRASES, PUSH_PHRASES, VIDEO_PAUSE_PHRASES, type ActivityType } from '../data/activityPhrases'
@@ -56,6 +56,31 @@ async function getScaleFactor(): Promise<number> {
     return await getCurrentWindow().scaleFactor()
   } catch {
     return 1.0
+  }
+}
+
+/** Get screen bounds and clamp a position to stay within screen */
+async function clampPosition(x: number, y: number): Promise<{ x: number; y: number }> {
+  try {
+    const monitor = await currentMonitor()
+    if (!monitor) return { x, y }
+    const win = getCurrentWindow()
+    const size = await win.outerSize()
+
+    const mPos = monitor.position
+    const mSize = monitor.size
+    const margin = Math.round(size.width * 0.2)
+    const minX = mPos.x - margin
+    const minY = mPos.y
+    const maxX = mPos.x + mSize.width - size.width + margin
+    const maxY = mPos.y + mSize.height - Math.round(size.height * 0.5)
+
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y)),
+    }
+  } catch {
+    return { x, y }
   }
 }
 
@@ -408,7 +433,19 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       if (cancelled) return
 
       // 7. Push! Hamster and target window slide together
-      const pushDist = PUSH_DISTANCE * scale
+      // Clamp push distance to stay within screen bounds
+      let pushDist = PUSH_DISTANCE * scale
+      const potentialEndX = finalApproachX + approach.dirX * pushDist
+      const potentialEndY = finalApproachY + approach.dirY * pushDist
+      const clampedEnd = await clampPosition(potentialEndX, potentialEndY)
+      // Reduce push distance if it would go off-screen
+      if (approach.dirX !== 0) {
+        pushDist = Math.abs(clampedEnd.x - finalApproachX)
+      } else {
+        pushDist = Math.abs(clampedEnd.y - finalApproachY)
+      }
+      if (pushDist < 10) pushDist = 10 // minimum push
+
       await animatePushTogether(
         finalApproachX, finalApproachY,
         currentTargetRect.left, currentTargetRect.top,
@@ -424,11 +461,13 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       isWalkingBack.value = true
       callbacks.triggerReaction('running', 2000)
 
+      // Clamp return position to screen bounds
+      const clampedStart = await clampPosition(startX, startY)
       const returnDist = Math.sqrt(
-        (startX - afterPushX) ** 2 + (startY - afterPushY) ** 2,
+        (clampedStart.x - afterPushX) ** 2 + (clampedStart.y - afterPushY) ** 2,
       )
       const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-      await animateHamsterMove(afterPushX, afterPushY, startX, startY, returnDuration)
+      await animateHamsterMove(afterPushX, afterPushY, clampedStart.x, clampedStart.y, returnDuration)
 
       isWalkingBack.value = false
     } catch {
@@ -553,11 +592,13 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       pushDirection.value = currentPos.x > startX ? 'right' : 'left'
       callbacks.triggerReaction('running', 2000)
 
+      // Clamp return position to screen bounds
+      const clampedReturn = await clampPosition(startX, startY)
       const returnDist = Math.sqrt(
-        (startX - currentPos.x) ** 2 + (startY - currentPos.y) ** 2,
+        (clampedReturn.x - currentPos.x) ** 2 + (clampedReturn.y - currentPos.y) ** 2,
       )
       const returnDuration = Math.max(returnDist / WALK_SPEED, 800)
-      await animateHamsterMove(currentPos.x, currentPos.y, startX, startY, returnDuration)
+      await animateHamsterMove(currentPos.x, currentPos.y, clampedReturn.x, clampedReturn.y, returnDuration)
 
       isWalkingBack.value = false
     } catch {
@@ -584,6 +625,11 @@ export function usePushAnimation(callbacks: PushCallbacks) {
       const startPos = await appWindow.outerPosition()
       const startX = startPos.x
       const startY = startPos.y
+
+      // Clamp target to screen bounds
+      const clamped = await clampPosition(targetPhysX, targetPhysY)
+      targetPhysX = clamped.x
+      targetPhysY = clamped.y
 
       const dx = targetPhysX - startX
       const dy = targetPhysY - startY

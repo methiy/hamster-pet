@@ -557,18 +557,20 @@ async function clampToScreen() {
 
     const mPos = monitor.position   // physical pixels
     const mSize = monitor.size      // physical pixels
-    const minX = mPos.x
+    // Keep at least 80% of the window visible on screen
+    const margin = Math.round(size.width * 0.2)
+    const minX = mPos.x - margin
     const minY = mPos.y
-    const maxX = mPos.x + mSize.width - Math.round(size.width * 0.3)   // allow 70% off-right
-    const maxY = mPos.y + mSize.height - Math.round(size.height * 0.3) // allow 70% off-bottom
+    const maxX = mPos.x + mSize.width - size.width + margin
+    const maxY = mPos.y + mSize.height - Math.round(size.height * 0.5)
 
     let x = pos.x
     let y = pos.y
     let needsClamp = false
 
-    if (x < minX - Math.round(size.width * 0.7)) { x = minX; needsClamp = true }
+    if (x < minX) { x = minX; needsClamp = true }
     if (x > maxX) { x = maxX; needsClamp = true }
-    if (y < minY - Math.round(size.height * 0.3)) { y = minY; needsClamp = true }
+    if (y < minY) { y = minY; needsClamp = true }
     if (y > maxY) { y = maxY; needsClamp = true }
 
     if (needsClamp) {
@@ -885,11 +887,11 @@ async function onToggleAutoStart(value: boolean) {
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
 let reminderTimer: ReturnType<typeof setInterval> | null = null
-let boundsTimer: ReturnType<typeof setInterval> | null = null
 let pomodoroSyncTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
 let unlistenTrayAction: (() => void) | null = null
 let unlistenRequestData: (() => void) | null = null
+let unlistenMoved: (() => void) | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1001,7 +1003,15 @@ onMounted(async () => {
       playSound('notification')
     }
   }, 30000)
-  boundsTimer = setInterval(clampToScreen, 10000) // check every 10s
+  // Clamp after window is moved (e.g. user drags pet off-screen)
+  try {
+    let moveDebounce: ReturnType<typeof setTimeout> | null = null
+    unlistenMoved = await getCurrentWindow().onMoved(() => {
+      if (moveDebounce) clearTimeout(moveDebounce)
+      moveDebounce = setTimeout(clampToScreen, 500)
+    })
+  } catch { /* Not in Tauri */ }
+
   // Sync pomodoro state to panel window every second when running
   pomodoroSyncTimer = setInterval(() => {
     if (pomodoroIsRunning.value && currentOpenPanel.value === 'pomodoro') {
@@ -1107,12 +1117,12 @@ onUnmounted(() => {
   destroyActionListener()
   if (adventureTimer) clearInterval(adventureTimer)
   if (reminderTimer) clearInterval(reminderTimer)
-  if (boundsTimer) clearInterval(boundsTimer)
   if (pomodoroSyncTimer) clearInterval(pomodoroSyncTimer)
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
   if (unlistenTrayAction) unlistenTrayAction()
   if (unlistenRequestData) unlistenRequestData()
+  if (unlistenMoved) unlistenMoved()
 })
 </script>
 
