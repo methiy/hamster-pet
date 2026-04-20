@@ -44,3 +44,4 @@ jobs:
           releaseBody: '桌面仓鼠宠物 Windows 版本'
           releaseDraft: false
           prerelease: false
+          updaterJsonPreferNsis: true

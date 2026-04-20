@@ -25,7 +25,9 @@
 
       <div v-if="updateStatus === 'update-available'" class="update-info">
         <div v-if="releaseNotes" class="release-notes">{{ releaseNotes }}</div>
-        <button class="download-btn" @click="startUpdate">📥 立即更新</button>
+        <button class="download-btn" @click="startUpdate">
+          {{ pendingUpdate ? '📥 立即更新' : '📥 前往下载' }}
+        </button>
       </div>
 
       <div v-if="updateStatus === 'downloading'" class="progress-bar-container">
@@ -80,6 +82,7 @@ const downloadProgress = ref(0)
 const errorMsg = ref('检查失败')
 
 let pendingUpdate: Update | null = null
+let releaseUrl = ''
 
 async function handleUpdateClick() {
   if (updateStatus.value === 'error' || updateStatus.value === 'idle' || updateStatus.value === 'up-to-date') {
@@ -105,14 +108,58 @@ async function checkUpdate() {
       updateStatus.value = 'up-to-date'
     }
   } catch (e: any) {
-    errorMsg.value = '检查失败'
-    updateStatus.value = 'error'
-    console.error('Update check failed:', e)
+    // Fallback: check via GitHub API if updater plugin fails
+    try {
+      await checkUpdateViaGitHub()
+    } catch {
+      errorMsg.value = '检查失败'
+      updateStatus.value = 'error'
+      console.error('Update check failed:', e)
+    }
+  }
+}
+
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/, '').split('.').map(Number)
+  const pb = b.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+async function checkUpdateViaGitHub() {
+  const resp = await fetch('https://api.github.com/repos/methiy/hamster-pet/releases/latest')
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  const data = await resp.json()
+
+  const tag = data.tag_name as string
+  latestVersion.value = tag.replace(/^v/, '')
+
+  const body = (data.body as string) ?? ''
+  releaseNotes.value = body.length > 200 ? body.slice(0, 200) + '...' : body
+  releaseUrl = data.html_url as string
+
+  if (compareSemver(tag, appVersion) > 0) {
+    updateStatus.value = 'update-available'
+  } else {
+    updateStatus.value = 'up-to-date'
   }
 }
 
 async function startUpdate() {
-  if (!pendingUpdate) return
+  if (!pendingUpdate) {
+    // Fallback: open download page in browser
+    const url = releaseUrl || 'https://github.com/methiy/hamster-pet/releases/latest'
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell')
+      await open(url)
+    } catch {
+      window.open(url, '_blank')
+    }
+    return
+  }
 
   updateStatus.value = 'downloading'
   downloadProgress.value = 0
