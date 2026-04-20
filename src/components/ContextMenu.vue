@@ -10,7 +10,7 @@
         <div class="menu-item" @click="emit('reminder')">📝 备忘</div>
         <div class="menu-item" @click="emit('status')">📊 状态</div>
         <div class="menu-divider"></div>
-        <div class="menu-item" @click="emit('typing')">⌨️ 打字模式</div>
+        <!-- <div class="menu-item" @click="emit('typing')">⌨️ 打字模式</div> -->
         <div class="menu-item" @click="emit('pomodoro')">🍅 番茄钟</div>
         <div class="menu-item" @click="emit('settings')">⚙️ 设置</div>
         <div class="menu-item menu-item-danger" @click="emit('quit')">❌ 退出</div>
