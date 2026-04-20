@@ -7,9 +7,22 @@ type PanelActionHandler = (action: string, payload?: any) => void
 let panelWindow: WebviewWindow | null = null
 let panelCreating = false
 let panelReady = false
+let panelJsReady = false  // true after panel:ready is received
 let unlistenAction: (() => void) | null = null
 let unlistenClose: (() => void) | null = null
+let unlistenReady: (() => void) | null = null
 let actionHandler: PanelActionHandler | null = null
+
+// Resolve function for waiting on panel:ready
+let panelReadyResolve: (() => void) | null = null
+let panelReadyPromise: Promise<void> | null = null
+
+function resetReadyPromise() {
+  panelJsReady = false
+  panelReadyPromise = new Promise<void>((resolve) => {
+    panelReadyResolve = resolve
+  })
+}
 
 // Track current panel for sync purposes
 const currentOpenPanel = ref<string | null>(null)
@@ -29,6 +42,8 @@ async function createPanelWindow(): Promise<WebviewWindow> {
   }
 
   panelCreating = true
+  resetReadyPromise()
+
   try {
     const win = new WebviewWindow('panel', {
       url: 'panel.html',
@@ -57,6 +72,16 @@ async function createPanelWindow(): Promise<WebviewWindow> {
     panelWindow = win
     panelReady = true
 
+    // Listen for panel:ready from the panel's JS
+    if (unlistenReady) unlistenReady()
+    unlistenReady = await listen('panel:ready', () => {
+      panelJsReady = true
+      if (panelReadyResolve) {
+        panelReadyResolve()
+        panelReadyResolve = null
+      }
+    })
+
     // Intercept close: hide instead of destroy so we can reuse instantly
     unlistenClose = await win.onCloseRequested(async (event) => {
       event.preventDefault()
@@ -77,6 +102,18 @@ async function ensurePanelWindow(): Promise<WebviewWindow> {
   return createPanelWindow()
 }
 
+/** Wait until the panel's JS has loaded and registered its listeners */
+async function waitForPanelReady(timeoutMs = 5000): Promise<void> {
+  if (panelJsReady) return
+  if (!panelReadyPromise) return
+
+  // Race against timeout
+  await Promise.race([
+    panelReadyPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ])
+}
+
 export function usePanelWindow() {
 
   /** Preload the panel window in background (call on app mount) */
@@ -91,8 +128,11 @@ export function usePanelWindow() {
   async function openPanel(panel: string, data: Record<string, any> = {}) {
     try {
       const win = await ensurePanelWindow()
-      currentOpenPanel.value = panel
 
+      // Wait for panel JS to be ready before sending events
+      await waitForPanelReady()
+
+      currentOpenPanel.value = panel
       await emitTo('panel', 'panel:open', { panel, data })
       await win.center()
       await win.show()
@@ -103,7 +143,7 @@ export function usePanelWindow() {
   }
 
   async function syncState(data: Record<string, any>) {
-    if (!panelWindow || !panelReady) return
+    if (!panelWindow || !panelReady || !panelJsReady) return
     try {
       await emitTo('panel', 'panel:sync-state', data)
     } catch { /* Panel window may have been closed */ }
@@ -133,6 +173,10 @@ export function usePanelWindow() {
     if (unlistenClose) {
       unlistenClose()
       unlistenClose = null
+    }
+    if (unlistenReady) {
+      unlistenReady()
+      unlistenReady = null
     }
     actionHandler = null
   }

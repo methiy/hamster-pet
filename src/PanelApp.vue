@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit as tauriEmit } from '@tauri-apps/api/event'
 import { emitTo } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
@@ -103,6 +103,9 @@ onMounted(async () => {
     unlistenSync = await listen<Record<string, any>>('panel:sync-state', (event) => {
       panelData.value = { ...panelData.value, ...event.payload }
     })
+
+    // Signal to main window that panel is ready to receive events
+    await tauriEmit('panel:ready', {})
   } catch { /* Not in Tauri */ }
 })
 
