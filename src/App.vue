@@ -210,7 +210,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
@@ -417,6 +417,7 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
   triggerReaction,
   onComplete: () => {
     resetReacting()
+    clampToScreen()
   },
 })
 
@@ -659,6 +660,37 @@ let grabWindowY = 0
 let grabHoldTimer: ReturnType<typeof setTimeout> | null = null
 const isGrabbing = ref(false)
 
+// --- Screen boundary clamping ---
+async function clampToScreen() {
+  try {
+    const win = getCurrentWindow()
+    const monitor = await currentMonitor()
+    if (!monitor) return
+    const pos = await win.outerPosition()
+    const size = await win.outerSize()
+
+    const mPos = monitor.position   // physical pixels
+    const mSize = monitor.size      // physical pixels
+    const minX = mPos.x
+    const minY = mPos.y
+    const maxX = mPos.x + mSize.width - Math.round(size.width * 0.3)   // allow 70% off-right
+    const maxY = mPos.y + mSize.height - Math.round(size.height * 0.3) // allow 70% off-bottom
+
+    let x = pos.x
+    let y = pos.y
+    let needsClamp = false
+
+    if (x < minX - Math.round(size.width * 0.7)) { x = minX; needsClamp = true }
+    if (x > maxX) { x = maxX; needsClamp = true }
+    if (y < minY - Math.round(size.height * 0.3)) { y = minY; needsClamp = true }
+    if (y > maxY) { y = maxY; needsClamp = true }
+
+    if (needsClamp) {
+      await win.setPosition(new PhysicalPosition(x, y))
+    }
+  } catch { /* Not in Tauri */ }
+}
+
 function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)]
 }
@@ -794,6 +826,7 @@ async function onGrabEnd() {
     })
   } catch { /* Not in Tauri */ }
 
+  await clampToScreen()
   triggerReaction('happy', 2000)
 }
 
@@ -1057,6 +1090,7 @@ watch(mode, (newMode) => {
 // --- Adventure integration ---
 let adventureTimer: ReturnType<typeof setInterval> | null = null
 let reminderTimer: ReturnType<typeof setInterval> | null = null
+let boundsTimer: ReturnType<typeof setInterval> | null = null
 let unlistenSummon: (() => void) | null = null
 let unlistenTrayAction: (() => void) | null = null
 
@@ -1159,6 +1193,7 @@ onMounted(async () => {
       playSound('notification')
     }
   }, 30000)
+  boundsTimer = setInterval(clampToScreen, 10000) // check every 10s
   if (isOnAdventure.value) {
     setState('adventure_out')
   }
@@ -1243,6 +1278,7 @@ onUnmounted(() => {
   stopAutoFetch()
   if (adventureTimer) clearInterval(adventureTimer)
   if (reminderTimer) clearInterval(reminderTimer)
+  if (boundsTimer) clearInterval(boundsTimer)
   if (clickTimer) clearTimeout(clickTimer)
   if (unlistenSummon) unlistenSummon()
   if (unlistenTrayAction) unlistenTrayAction()
