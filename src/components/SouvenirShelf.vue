@@ -1,7 +1,6 @@
 <template>
   <div class="shelf-wrapper">
     <div class="shelf" @click.stop>
-      <button class="close-btn" @click="emit('close')">✕</button>
       <h2 class="shelf-title">🎁 纪念品架</h2>
 
         <div v-if="sortedItems.length === 0" class="empty-msg">
@@ -67,9 +66,6 @@ const props = defineProps<{
   collectedSouvenirs: string[]
 }>()
 
-const emit = defineEmits<{
-  close: []
-}>()
 
 interface DisplayItem {
   id: string
@@ -131,26 +127,7 @@ function rarityLabel(rarity: string): string {
   font-size: 12px;
 }
 
-.close-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  color: #5C4033;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
-.close-btn:hover {
-  background: rgba(92, 64, 51, 0.1);
-}
 
 .shelf-title {
   text-align: center;
