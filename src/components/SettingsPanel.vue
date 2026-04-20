@@ -108,6 +108,21 @@
             >
               {{ opt.label }}
             </button>
+            <div class="custom-interval-wrap">
+              <input
+                type="number"
+                min="5"
+                max="300"
+                :value="isCustomInterval ? customIntervalInput : ''"
+                :placeholder="isCustomInterval ? '' : '自定义'"
+                class="custom-interval-input"
+                :class="{ active: isCustomInterval }"
+                @focus="customIntervalInput = String(activityCheckInterval)"
+                @change="onCustomIntervalChange"
+                @input="customIntervalInput = ($event.target as HTMLInputElement).value"
+              />
+              <span class="custom-interval-unit">秒</span>
+            </div>
           </div>
         </div>
 
@@ -139,7 +154,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { ref, computed, watch } from 'vue'
+
+const props = defineProps<{
   alwaysOnTop: boolean
   size: string
   volume: number
@@ -178,6 +195,25 @@ const intervalOptions = [
   { value: 30, label: '30秒' },
   { value: 60, label: '1分钟' },
 ]
+
+const isCustomInterval = computed(() =>
+  !intervalOptions.some(opt => opt.value === props.activityCheckInterval)
+)
+
+const customIntervalInput = ref('')
+
+watch(() => props.activityCheckInterval, (val) => {
+  if (isCustomInterval.value) {
+    customIntervalInput.value = String(val)
+  }
+}, { immediate: true })
+
+function onCustomIntervalChange() {
+  const v = parseInt(customIntervalInput.value)
+  if (!isNaN(v) && v >= 5 && v <= 300) {
+    emit('update:activityCheckInterval', v)
+  }
+}
 </script>
 
 <style scoped>
@@ -425,5 +461,41 @@ const intervalOptions = [
 .interval-selector {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.custom-interval-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.custom-interval-input {
+  width: 48px;
+  padding: 4px 6px;
+  border: 1px solid rgba(92, 64, 51, 0.2);
+  border-radius: 6px;
+  background: white;
+  color: #5C4033;
+  font-size: 12px;
+  text-align: center;
+  font-family: inherit;
+}
+
+.custom-interval-input:focus {
+  outline: none;
+  border-color: #F2A65A;
+}
+
+.custom-interval-input.active {
+  background: #F2A65A;
+  color: white;
+  border-color: #F2A65A;
+}
+
+.custom-interval-unit {
+  font-size: 11px;
+  color: #A08060;
 }
 </style>
