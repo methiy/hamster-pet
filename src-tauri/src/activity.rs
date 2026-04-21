@@ -30,6 +30,16 @@ pub struct CursorPosition {
     pub y: i32,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct CaptureDebug {
+    pub captured: bool,
+    pub hwnd: Option<i64>,
+    pub fg_pid: u32,
+    pub self_pid: u32,
+    pub title: String,
+    pub reason: String,
+}
+
 #[cfg(target_os = "windows")]
 pub mod platform {
     use super::*;
@@ -114,19 +124,50 @@ pub mod platform {
     /// pet window took focus due to a speech bubble / state change), which
     /// looks like nothing happened to the user.
     pub fn capture_foreground_hwnd() -> bool {
+        capture_foreground_hwnd_debug().captured
+    }
+
+    /// Same as capture_foreground_hwnd, but also returns diagnostics so the
+    /// UI can surface the reason when capture fails silently.
+    pub fn capture_foreground_hwnd_debug() -> CaptureDebug {
         unsafe {
             let hwnd: HWND = GetForegroundWindow();
             if hwnd.0.is_null() {
-                return false;
+                return CaptureDebug {
+                    captured: false,
+                    hwnd: None,
+                    fg_pid: 0,
+                    self_pid: std::process::id(),
+                    title: String::new(),
+                    reason: "GetForegroundWindow returned null".to_string(),
+                };
             }
             let mut pid: u32 = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut pid));
             let self_pid = std::process::id();
+            let mut title_buf = [0u16; 256];
+            let title_len = GetWindowTextW(hwnd, &mut title_buf);
+            let title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
+            let hwnd_i64 = hwnd.0 as isize as i64;
             if pid == self_pid {
-                return false;
+                return CaptureDebug {
+                    captured: false,
+                    hwnd: Some(hwnd_i64),
+                    fg_pid: pid,
+                    self_pid,
+                    title,
+                    reason: "foreground is our own process".to_string(),
+                };
             }
             CAPTURED_HWND.store(hwnd.0 as isize, Ordering::SeqCst);
-            true
+            CaptureDebug {
+                captured: true,
+                hwnd: Some(hwnd_i64),
+                fg_pid: pid,
+                self_pid,
+                title,
+                reason: "ok".to_string(),
+            }
         }
     }
 
@@ -407,6 +448,17 @@ pub mod platform {
 
     pub fn capture_foreground_hwnd() -> bool {
         false
+    }
+
+    pub fn capture_foreground_hwnd_debug() -> CaptureDebug {
+        CaptureDebug {
+            captured: false,
+            hwnd: None,
+            fg_pid: 0,
+            self_pid: 0,
+            title: String::new(),
+            reason: "unsupported platform".to_string(),
+        }
     }
 
     pub fn move_captured_window(_x: i32, _y: i32) -> bool {

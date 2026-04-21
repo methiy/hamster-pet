@@ -8,6 +8,15 @@ interface HwndRect {
   height: number
 }
 
+interface CaptureDebug {
+  captured: boolean
+  hwnd: number | null
+  fg_pid: number
+  self_pid: number
+  title: string
+  reason: string
+}
+
 export interface AlertUserDeps {
   /** Plays a sound effect by name. Pass through from the app's audio layer. */
   playSound: (name: string) => void
@@ -50,21 +59,30 @@ export function useAlertUser(deps: AlertUserDeps) {
     deps.playSound(sound)
 
     let hwnd: number | null = null
+    let debugSuffix = ''
     try {
-      const captured = await invoke<boolean>('capture_foreground_hwnd')
-      if (captured) {
-        hwnd = await invoke<number | null>('get_captured_hwnd')
+      const dbg = await invoke<CaptureDebug>('capture_foreground_hwnd_debug')
+      console.log('[alertUser] capture debug ->', dbg)
+      debugSuffix = ` [dbg: captured=${dbg.captured} fg_pid=${dbg.fg_pid} self_pid=${dbg.self_pid} title="${(dbg.title || '').slice(0, 30)}" reason=${dbg.reason}]`
+      if (dbg.captured) {
+        hwnd = dbg.hwnd
+        console.log('[alertUser] captured hwnd ->', hwnd)
       }
-    } catch {
+    } catch (e) {
+      console.warn('[alertUser] capture failed:', e)
+      debugSuffix = ` [dbg: invoke threw ${String(e)}]`
       hwnd = null
     }
 
     if (hwnd === null) {
+      console.log('[alertUser] fallback: null hwnd, speech-only')
       // Foreground is our own pet window (or capture unavailable on this
       // platform). Don't shake our own window — just show the speech bubble.
-      deps.showSpeech(text)
+      deps.showSpeech(text + debugSuffix)
       return
     }
+
+    console.log('[alertUser] proceeding with shake+walk for hwnd', hwnd)
 
     // Fire shake and walk in parallel so the pet starts moving while the
     // foreground window is still wobbling.

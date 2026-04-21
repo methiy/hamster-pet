@@ -26,9 +26,14 @@ describe('useAlertUser', () => {
     showSpeech = vi.fn()
   })
 
-  it('fallback path: skips shake and only shows speech when capture_foreground_hwnd returns false', async () => {
+  it('fallback path: skips shake and only shows speech (with debug suffix) when capture reports not captured', async () => {
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'capture_foreground_hwnd') return Promise.resolve(false)
+      if (cmd === 'capture_foreground_hwnd_debug') {
+        return Promise.resolve({
+          captured: false, hwnd: null, fg_pid: 1111, self_pid: 2222,
+          title: 'somewindow', reason: 'foreground is our own process',
+        })
+      }
       return Promise.resolve(null)
     })
 
@@ -38,13 +43,21 @@ describe('useAlertUser', () => {
     expect(playSound).toHaveBeenCalledWith('notification')
     expect(shakeMock).not.toHaveBeenCalled()
     expect(walkTo).not.toHaveBeenCalled()
-    expect(showSpeech).toHaveBeenCalledWith('hello')
+    expect(showSpeech).toHaveBeenCalledTimes(1)
+    const spoken = showSpeech.mock.calls[0][0] as string
+    expect(spoken).toContain('hello')
+    expect(spoken).toContain('captured=false')
+    expect(spoken).toContain('reason=foreground is our own process')
   })
 
   it('happy path: captures hwnd, shakes it, walks pet fast, shows speech', async () => {
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'capture_foreground_hwnd') return Promise.resolve(true)
-      if (cmd === 'get_captured_hwnd') return Promise.resolve(99999)
+      if (cmd === 'capture_foreground_hwnd_debug') {
+        return Promise.resolve({
+          captured: true, hwnd: 99999, fg_pid: 3333, self_pid: 2222,
+          title: 'Visual Studio Code', reason: 'ok',
+        })
+      }
       if (cmd === 'get_hwnd_rect') return Promise.resolve({ x: 200, y: 300, width: 800, height: 600 })
       return Promise.resolve(null)
     })
@@ -63,7 +76,12 @@ describe('useAlertUser', () => {
   })
 
   it('accepts custom sound', async () => {
-    invokeMock.mockImplementation(() => Promise.resolve(false))
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_foreground_hwnd_debug') {
+        return Promise.resolve({ captured: false, hwnd: null, fg_pid: 0, self_pid: 0, title: '', reason: 'x' })
+      }
+      return Promise.resolve(null)
+    })
     const { alertUserWithPet } = useAlertUser({ playSound: playSound as any, walkTo: walkTo as any, showSpeech: showSpeech as any })
     await alertUserWithPet('x', { sound: 'summon' })
     expect(playSound).toHaveBeenCalledWith('summon')

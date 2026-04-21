@@ -1,6 +1,6 @@
 {
   "productName": "Hamster Pet",
-  "version": "0.7.22",
+  "version": "0.7.23",
   "identifier": "com.hamster.pet",
   "build": {
     "beforeDevCommand": "npm run dev",
