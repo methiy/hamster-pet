@@ -4,7 +4,7 @@ interface ShakeEvent {
   t: number
 }
 
-interface DetectorOptions {
+export interface DetectorOptions {
   /** 统计窗口毫秒，默认 800 */
   windowMs?: number
   /** 最少方向翻转次数，默认 4 */
@@ -17,6 +17,21 @@ interface DetectorOptions {
   now?: () => number
 }
 
+/**
+ * Detects a "shake" mouse gesture: many quick direction reversals over a short distance.
+ *
+ * Algorithm: maintain a sliding window of recent mouse events (default 800ms). On each
+ * event, count how many times the cursor's direction reversed on either axis (comparing
+ * sign of dx/dy against the previously observed nonzero sign) and sum the euclidean
+ * distance between consecutive events. When both thresholds are met (default: ≥4
+ * reversals AND ≥300px), fire `onShake` exactly once, then enter a cooldown (default
+ * 5000ms) during which further events are tracked for pruning but no new trigger fires.
+ *
+ * The time source can be injected via `opts.now` for deterministic testing.
+ *
+ * Used by the cursor-chase feature: when the user shakes the mouse on top of the pet,
+ * the pet leaps into a chase animation.
+ */
 export function useMouseShakeDetector(
   onShake: () => void,
   opts: DetectorOptions = {},
