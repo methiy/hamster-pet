@@ -136,6 +136,12 @@ export function usePanelWindow() {
       await emitTo('panel', 'panel:open', { panel, data })
       await win.center()
       await win.show()
+      // Force Windows to re-insert the window at the top of the topmost
+      // z-order. alwaysOnTop: true alone only keeps a window above
+      // non-topmost peers; toggling false→true after show() pushes it
+      // above other topmost windows too. Cheap and idempotent on macOS.
+      await win.setAlwaysOnTop(false)
+      await win.setAlwaysOnTop(true)
       await win.setFocus()
     } catch (e) {
       console.error('Failed to open panel:', e)
