@@ -1,11 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useWindowShake } from './useWindowShake'
 
-interface HwndRect {
-  x: number
-  y: number
-  width: number
-  height: number
+/** Matches Rust's WindowRect in activity.rs (serde default field casing). */
+interface WindowRect {
+  left: number
+  top: number
+  right: number
+  bottom: number
 }
 
 interface CaptureDebug {
@@ -49,6 +50,12 @@ export interface AlertUserOptions {
 export function useAlertUser(deps: AlertUserDeps) {
   const { shakeWindowByHwnd } = useWindowShake()
 
+  // Fire-and-forget write to the in-app debug log.
+  function dbg(line: string): void {
+    // Keep it async; ignore failures (logging must never block the alert).
+    invoke('append_debug_log', { line }).catch(() => {})
+  }
+
   async function alertUserWithPet(
     text: string,
     opts: AlertUserOptions = {}
@@ -59,46 +66,56 @@ export function useAlertUser(deps: AlertUserDeps) {
     deps.playSound(sound)
 
     let hwnd: number | null = null
-    let debugSuffix = ''
     try {
-      const dbg = await invoke<CaptureDebug>('capture_foreground_hwnd_debug')
-      console.log('[alertUser] capture debug ->', dbg)
-      debugSuffix = ` [dbg: captured=${dbg.captured} fg_pid=${dbg.fg_pid} self_pid=${dbg.self_pid} title="${(dbg.title || '').slice(0, 30)}" reason=${dbg.reason}]`
-      if (dbg.captured) {
-        hwnd = dbg.hwnd
-        console.log('[alertUser] captured hwnd ->', hwnd)
+      const info = await invoke<CaptureDebug>('capture_foreground_hwnd_debug')
+      dbg(`capture: captured=${info.captured} fg_pid=${info.fg_pid} self_pid=${info.self_pid} reason=${info.reason} title="${(info.title || '').slice(0, 60)}"`)
+      if (info.captured) {
+        hwnd = info.hwnd
       }
     } catch (e) {
-      console.warn('[alertUser] capture failed:', e)
-      debugSuffix = ` [dbg: invoke threw ${String(e)}]`
+      dbg(`capture invoke threw: ${String(e)}`)
       hwnd = null
     }
 
     if (hwnd === null) {
-      console.log('[alertUser] fallback: null hwnd, speech-only')
+      dbg('fallback: null hwnd, speech-only')
       // Foreground is our own pet window (or capture unavailable on this
       // platform). Don't shake our own window — just show the speech bubble.
-      deps.showSpeech(text + debugSuffix)
+      deps.showSpeech(text)
       return
     }
 
-    console.log('[alertUser] proceeding with shake+walk for hwnd', hwnd)
+    dbg(`proceed: shake+walk hwnd=${hwnd}`)
 
     // Fire shake and walk in parallel so the pet starts moving while the
     // foreground window is still wobbling.
-    // Attach a no-op .catch so a rejection during the in-flight shake doesn't
-    // fire unhandledRejection before we await it at the bottom of this function.
-    const shakePromise = shakeWindowByHwnd(hwnd).catch(() => {})
+    const shakePromise = shakeWindowByHwnd(hwnd).catch((e) => {
+      dbg(`shake rejected: ${String(e)}`)
+    })
 
-    let rect: HwndRect | null = null
+    let rect: WindowRect | null = null
     try {
-      rect = await invoke<HwndRect | null>('get_hwnd_rect', { hwnd })
-    } catch { rect = null }
+      rect = await invoke<WindowRect | null>('get_hwnd_rect', { hwnd })
+      dbg(`get_hwnd_rect -> ${rect ? `l=${rect.left} t=${rect.top} r=${rect.right} b=${rect.bottom}` : 'null'}`)
+    } catch (e) {
+      dbg(`get_hwnd_rect threw: ${String(e)}`)
+      rect = null
+    }
 
     if (rect) {
-      const anchorX = rect.x + rect.width / 2
-      const anchorY = rect.y
-      await deps.walkTo([anchorX, anchorY], { speedMultiplier: speedMul })
+      const width = rect.right - rect.left
+      const height = rect.bottom - rect.top
+      const anchorX = rect.left + width / 2
+      const anchorY = rect.top + height / 2
+      dbg(`walkTo target: (${anchorX}, ${anchorY})`)
+      try {
+        await deps.walkTo([anchorX, anchorY], { speedMultiplier: speedMul })
+        dbg('walkTo done')
+      } catch (e) {
+        dbg(`walkTo threw: ${String(e)}`)
+      }
+    } else {
+      dbg('no rect, skipping walkTo')
     }
 
     await shakePromise

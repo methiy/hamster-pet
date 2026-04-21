@@ -26,7 +26,7 @@ describe('useAlertUser', () => {
     showSpeech = vi.fn()
   })
 
-  it('fallback path: skips shake and only shows speech (with debug suffix) when capture reports not captured', async () => {
+  it('fallback path: skips shake and only shows speech when capture reports not captured', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'capture_foreground_hwnd_debug') {
         return Promise.resolve({
@@ -34,6 +34,7 @@ describe('useAlertUser', () => {
           title: 'somewindow', reason: 'foreground is our own process',
         })
       }
+      if (cmd === 'append_debug_log') return Promise.resolve('/tmp/log')
       return Promise.resolve(null)
     })
 
@@ -43,14 +44,10 @@ describe('useAlertUser', () => {
     expect(playSound).toHaveBeenCalledWith('notification')
     expect(shakeMock).not.toHaveBeenCalled()
     expect(walkTo).not.toHaveBeenCalled()
-    expect(showSpeech).toHaveBeenCalledTimes(1)
-    const spoken = showSpeech.mock.calls[0][0] as string
-    expect(spoken).toContain('hello')
-    expect(spoken).toContain('captured=false')
-    expect(spoken).toContain('reason=foreground is our own process')
+    expect(showSpeech).toHaveBeenCalledWith('hello')
   })
 
-  it('happy path: captures hwnd, shakes it, walks pet fast, shows speech', async () => {
+  it('happy path: captures hwnd, shakes it, walks pet to window center, shows speech', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'capture_foreground_hwnd_debug') {
         return Promise.resolve({
@@ -58,7 +55,11 @@ describe('useAlertUser', () => {
           title: 'Visual Studio Code', reason: 'ok',
         })
       }
-      if (cmd === 'get_hwnd_rect') return Promise.resolve({ x: 200, y: 300, width: 800, height: 600 })
+      if (cmd === 'get_hwnd_rect') {
+        // Rust WindowRect: { left, top, right, bottom }. Window is 800x600 at (200,300).
+        return Promise.resolve({ left: 200, top: 300, right: 1000, bottom: 900 })
+      }
+      if (cmd === 'append_debug_log') return Promise.resolve('/tmp/log')
       return Promise.resolve(null)
     })
 
@@ -70,8 +71,9 @@ describe('useAlertUser', () => {
     expect(walkTo).toHaveBeenCalledTimes(1)
     expect(walkTo.mock.calls[0][1]).toEqual({ speedMultiplier: 3 })
     const [x, y] = walkTo.mock.calls[0][0]
+    // Window center: left + width/2, top + height/2.
     expect(x).toBe(200 + 800 / 2)
-    expect(y).toBe(300)
+    expect(y).toBe(300 + 600 / 2)
     expect(showSpeech).toHaveBeenCalledWith('reminder text')
   })
 

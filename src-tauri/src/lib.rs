@@ -86,6 +86,36 @@ fn write_reminder_file(app: tauri::AppHandle, text: String) -> Result<String, St
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Append a debug line (with an ISO-8601-ish timestamp) to
+/// `<appDataDir>/reminder-debug.log`. Used by the interval-reminder flow
+/// to record why `capture_foreground_hwnd` succeeded / failed, without
+/// polluting the in-app speech bubble. Returns the log file path.
+#[tauri::command]
+fn append_debug_log(app: tauri::AppHandle, line: String) -> Result<String, String> {
+    use std::io::Write;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app_data_dir: {}", e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    let path = dir.join("reminder-debug.log");
+
+    // Best-effort local timestamp. We don't pull in chrono just for this —
+    // a seconds-since-epoch prefix is enough to correlate events.
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("open log: {}", e))?;
+    writeln!(f, "[{}] {}", ts, line).map_err(|e| format!("write log: {}", e))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Atomically set window position and size in one OS call to avoid flicker.
 /// All values are in physical pixels.
 #[tauri::command]
@@ -148,7 +178,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file, append_debug_log])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
