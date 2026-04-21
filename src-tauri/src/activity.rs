@@ -236,6 +236,47 @@ pub mod platform {
             }
         }
     }
+
+    /// Move an arbitrary window (by HWND) to (x, y) without resizing or changing Z order.
+    /// Used by the notepad-slide reminder animation.
+    pub fn set_hwnd_position(hwnd_raw: i64, x: i32, y: i32) -> bool {
+        if hwnd_raw == 0 {
+            return false;
+        }
+        unsafe {
+            let hwnd = HWND(hwnd_raw as *mut _);
+            SetWindowPos(
+                hwnd,
+                None,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            ).is_ok()
+        }
+    }
+
+    /// Read the outer rect of an arbitrary window by HWND.
+    pub fn get_hwnd_rect(hwnd_raw: i64) -> Option<WindowRect> {
+        if hwnd_raw == 0 {
+            return None;
+        }
+        unsafe {
+            let hwnd = HWND(hwnd_raw as *mut _);
+            let mut rect = RECT::default();
+            if WinGetWindowRect(hwnd, &mut rect).is_ok() {
+                Some(WindowRect {
+                    left: rect.left,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                })
+            } else {
+                None
+            }
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -267,6 +308,14 @@ pub mod platform {
     }
 
     pub fn get_cursor_position() -> Option<CursorPosition> {
+        None
+    }
+
+    pub fn set_hwnd_position(_hwnd_raw: i64, _x: i32, _y: i32) -> bool {
+        false
+    }
+
+    pub fn get_hwnd_rect(_hwnd_raw: i64) -> Option<WindowRect> {
         None
     }
 }

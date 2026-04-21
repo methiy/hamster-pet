@@ -44,6 +44,16 @@ fn get_cursor_position() -> Option<CursorPosition> {
     activity::platform::get_cursor_position()
 }
 
+#[tauri::command]
+fn set_hwnd_position(hwnd: i64, x: i32, y: i32) -> bool {
+    activity::platform::set_hwnd_position(hwnd, x, y)
+}
+
+#[tauri::command]
+fn get_hwnd_rect(hwnd: i64) -> Option<activity::WindowRect> {
+    activity::platform::get_hwnd_rect(hwnd)
+}
+
 /// Atomically set window position and size in one OS call to avoid flicker.
 /// All values are in physical pixels.
 #[tauri::command]
@@ -108,7 +118,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
