@@ -1029,7 +1029,7 @@ onMounted(async () => {
 
   // Listen for tray-action events (from tray menu or global shortcuts)
   try {
-    unlistenTrayAction = await listen<string>('tray-action', (event) => {
+    unlistenTrayAction = await listen<string>('tray-action', async (event) => {
       const action = event.payload
       switch (action) {
         case 'feed':
@@ -1048,7 +1048,16 @@ onMounted(async () => {
           break
         case 'quit':
           save()
-          try { getCurrentWindow().close() } catch { window.close() }
+          // Fully exit so the tray icon goes away too. A plain
+          // getCurrentWindow().close() only closes the pet webview and
+          // leaves the tray icon dangling.
+          try {
+            await invoke('quit_app')
+          } catch {
+            // Not in Tauri / invoke unavailable — fall back to closing
+            // just this window.
+            try { getCurrentWindow().close() } catch { window.close() }
+          }
           break
       }
     })

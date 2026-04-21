@@ -25,6 +25,15 @@ fn move_foreground_window(x: i32, y: i32) -> bool {
 }
 
 #[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    // Match the tray menu's quit behavior: terminate the whole process so
+    // the tray icon also goes away. A plain window.close() on the pet
+    // window would leave the tray icon dangling, because Tauri doesn't
+    // auto-exit when a child window closes.
+    app.exit(0);
+}
+
+#[tauri::command]
 fn capture_foreground_hwnd() -> bool {
     activity::platform::capture_foreground_hwnd()
 }
@@ -178,7 +187,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file, append_debug_log])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file, append_debug_log, quit_app])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
