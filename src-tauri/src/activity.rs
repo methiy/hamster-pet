@@ -118,6 +118,18 @@ pub mod platform {
         }
     }
 
+    /// Returns the HWND previously stored by `capture_foreground_hwnd`,
+    /// or None if no window has been captured yet. i64 to match the numeric
+    /// type used elsewhere for HWND round-tripping to JS.
+    pub fn get_captured_hwnd() -> Option<i64> {
+        let raw = CAPTURED_HWND.load(Ordering::SeqCst);
+        if raw == 0 {
+            None
+        } else {
+            Some(raw as i64)
+        }
+    }
+
     /// Move the previously captured window to (x, y)
     pub fn move_captured_window(x: i32, y: i32) -> bool {
         let raw = CAPTURED_HWND.load(Ordering::SeqCst);
@@ -402,6 +414,10 @@ pub mod platform {
     }
 
     pub fn get_hwnd_rect(_hwnd_raw: i64) -> Option<WindowRect> {
+        None
+    }
+
+    pub fn get_captured_hwnd() -> Option<i64> {
         None
     }
 

@@ -30,6 +30,11 @@ fn capture_foreground_hwnd() -> bool {
 }
 
 #[tauri::command]
+fn get_captured_hwnd() -> Option<i64> {
+    activity::platform::get_captured_hwnd()
+}
+
+#[tauri::command]
 fn move_captured_window(x: i32, y: i32) -> bool {
     activity::platform::move_captured_window(x, y)
 }
@@ -138,7 +143,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
