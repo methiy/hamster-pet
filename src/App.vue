@@ -90,6 +90,7 @@ import { useNotepadSlide } from './composables/useNotepadSlide'
 import { useMouseShakeDetector } from './composables/useMouseShakeDetector'
 import { useChaseCursor } from './composables/useChaseCursor'
 import { useWindowShake } from './composables/useWindowShake'
+import { useAlertUser } from './composables/useAlertUser'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { SUMMON_PHRASES } from './data/activityPhrases'
@@ -265,6 +266,14 @@ const { isChasing, startChase, cancel: cancelChase } = useChaseCursor({
 const { slideNotepadReminder } = useNotepadSlide()
 
 const { shakeWindowByHwnd } = useWindowShake()
+
+const { alertUserWithPet } = useAlertUser({
+  playSound: (name: string) => playSound(name as Parameters<typeof playSound>[0]),
+  walkTo: async ([x, y], opts) => {
+    await startSummonWalk(x, y, { speedMultiplier: opts?.speedMultiplier })
+  },
+  showSpeech: showSpeechText,
+})
 
 const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
   // Don't start chase while other animations are active
@@ -929,11 +938,8 @@ onMounted(async () => {
           }
         })
       } else {
-        // Interval reminder: keep original shake behavior
-        showSpeechText(`📝 备忘提醒：${r.text}`)
-        showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
-        playSound('notification')
-        shakeWindow()
+        // Interval reminder: shake the user's foreground window and have the pet run over
+        alertUserWithPet(`📝 备忘提醒：${r.text}`)
       }
     }
   }, 30000)
