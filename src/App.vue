@@ -244,13 +244,18 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
 
 // --- Cursor chase feature ---
 const chaseWiggle = ref(false)
-const { isChasing, startChase } = useChaseCursor({
+let chaseWiggleTimer: ReturnType<typeof setTimeout> | null = null
+const { isChasing, startChase, cancel: cancelChase } = useChaseCursor({
   showSpeech: showSpeechText,
   triggerReaction,
   playSound,
   onPrank: () => {
     chaseWiggle.value = true
-    setTimeout(() => { chaseWiggle.value = false }, 1800)
+    if (chaseWiggleTimer) clearTimeout(chaseWiggleTimer)
+    chaseWiggleTimer = setTimeout(() => {
+      chaseWiggle.value = false
+      chaseWiggleTimer = null
+    }, 1800)
   },
 })
 
@@ -970,6 +975,12 @@ onMounted(async () => {
         if (isPushing.value) {
           cancelAnimation()
         }
+        if (isChasing.value) {
+          cancelChase()
+        }
+        if (isChasing.value) {
+          cancelChase()
+        }
 
         await win.show()
         await win.unminimize()
@@ -1041,6 +1052,7 @@ onUnmounted(() => {
   if (reminderTimer) clearInterval(reminderTimer)
   if (pomodoroSyncTimer) clearInterval(pomodoroSyncTimer)
   if (clickTimer) clearTimeout(clickTimer)
+  if (chaseWiggleTimer) clearTimeout(chaseWiggleTimer)
   if (unlistenSummon) unlistenSummon()
   if (unlistenTrayAction) unlistenTrayAction()
   if (unlistenRequestData) unlistenRequestData()
