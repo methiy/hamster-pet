@@ -32,8 +32,6 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "updater:default",
-    "process:allow-restart",
-    "updater:default",
     "process:allow-restart"
   ]
 }
