@@ -53,3 +53,36 @@ export const GRAB_RELEASE_PHRASES: string[] = [
   '吓死我了...心脏砰砰跳',
   '再也不要了！！',
 ]
+
+/** 鼠标追逐：开始时的台词 */
+export const CHASE_START_PHRASES: string[] = [
+  '你干嘛～追上你！',
+  '哎呀！别动！',
+  '站住！！',
+  '欠揍的小主人～',
+  '看我抓到你！',
+]
+
+/** 5 秒内追上时的台词 */
+export const CHASE_CATCH_PHRASES: string[] = [
+  '哈～追到啦！',
+  '抓住你了！嘿嘿嘿～',
+  '逃不掉了！',
+  '就知道追得上！',
+]
+
+/** 5 秒内没追上时的台词 */
+export const CHASE_FAIL_PHRASES: string[] = [
+  '哼！再也不给主人玩了！',
+  '累死了…没追上…',
+  '气死我了！！',
+  '主人坏坏！',
+]
+
+/** 没追上后触发的「骗你的」彩蛋台词 */
+export const CHASE_PRANK_PHRASES: string[] = [
+  '骗你的～追到咯！！！',
+  '嘿嘿，装累的～',
+  '其实我早就追上啦！',
+  '哼哼，惊喜吧～',
+]
