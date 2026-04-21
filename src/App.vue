@@ -39,12 +39,14 @@
         <div class="hamster-area" :class="pushAnimationClasses">
           <HamsterSprite
             :state="displayState"
+            :wiggle="chaseWiggle"
             @region-click="onRegionClick"
             @region-hover="onRegionHover"
             @miss-click="onMissClick"
             @grab-start="onGrabStart"
             @grab-move="onGrabMove"
             @grab-end="onGrabEnd"
+            @hit-mousemove="onShakeMouseMove"
           />
         </div>
       </div>
@@ -84,6 +86,8 @@ import { useWeather } from './composables/useWeather'
 import { usePanelWindow } from './composables/usePanelWindow'
 import { WEATHER_PHRASES } from './data/weatherPhrases'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
+import { useMouseShakeDetector } from './composables/useMouseShakeDetector'
+import { useChaseCursor } from './composables/useChaseCursor'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { SUMMON_PHRASES } from './data/activityPhrases'
@@ -238,6 +242,26 @@ const { isPushing, isWalking, isWalkingBack, pushDirection, startPush, startVide
   },
 })
 
+// --- Cursor chase feature ---
+const chaseWiggle = ref(false)
+const { isChasing, startChase } = useChaseCursor({
+  showSpeech: showSpeechText,
+  triggerReaction,
+  playSound: (name: string) => playSound(name as any),
+  onPrank: () => {
+    chaseWiggle.value = true
+    setTimeout(() => { chaseWiggle.value = false }, 1800)
+  },
+})
+
+const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
+  // Don't start chase while other animations are active
+  if (isChasing.value) return
+  if (isPushing.value || isWalking.value || isWalkingBack.value) return
+  if (isGrabbing.value) return
+  startChase()
+})
+
 // --- Activity reaction settings (derived from settings ref) ---
 const activityReactionEnabled = computed(() => settings.value.activityReactionEnabled ?? true)
 const activityPushEnabled = computed(() => settings.value.activityPushEnabled ?? true)
@@ -249,9 +273,11 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
     showSpeech: showSpeechText,
     triggerReaction,
     startPush: (activity: ActivityType) => {
+      if (isChasing.value) return
       startPush(activity, windowInfo.value?.rect ?? null, windowInfo.value?.process_name)
     },
     startVideoPause: () => {
+      if (isChasing.value) return
       startVideoPause(windowInfo.value?.rect ?? null, windowInfo.value?.process_name)
     },
   },
