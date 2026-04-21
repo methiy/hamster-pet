@@ -67,6 +67,7 @@ export function useChaseCursor(callbacks: ChaseCallbacks) {
     if (isChasing.value) return
     isChasing.value = true
     cancelled = false
+    let done = false
 
     try {
       const appWindow = getCurrentWindow()
@@ -92,12 +93,13 @@ export function useChaseCursor(callbacks: ChaseCallbacks) {
       // Chase loop
       await new Promise<void>((resolve) => {
         function step(now: number) {
-          if (cancelled) { resolve(); return }
+          if (cancelled) { done = true; resolve(); return }
           const elapsed = now - chaseStart
-          if (elapsed >= CHASE_TIMEOUT_MS) { resolve(); return }
+          if (elapsed >= CHASE_TIMEOUT_MS) { done = true; resolve(); return }
 
           // Poll cursor (fire and forget — we use last known in closure via invoke-and-update)
           invoke<{ x: number; y: number } | null>('get_cursor_position').then(cur => {
+            if (cancelled || done) return
             if (!cur) return
             const targetX = cur.x - petHalfW
             const targetY = cur.y - petHalfH
@@ -197,10 +199,14 @@ export function useChaseCursor(callbacks: ChaseCallbacks) {
         const x = startX + dx * eased
         const y = startY + dy * eased
         appWindow.setPosition(new PhysicalPosition(Math.round(x), Math.round(y))).catch(() => {})
-        if (p < 1) requestAnimationFrame(step)
-        else resolve()
+        if (p < 1) {
+          animationFrame = requestAnimationFrame(step)
+        } else {
+          animationFrame = null
+          resolve()
+        }
       }
-      requestAnimationFrame(step)
+      animationFrame = requestAnimationFrame(step)
     })
   }
 
