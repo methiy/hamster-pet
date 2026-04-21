@@ -106,11 +106,23 @@ pub mod platform {
         }
     }
 
-    /// Capture the current foreground window handle for later use
+    /// Capture the current foreground window handle for later use.
+    ///
+    /// Returns false (and stores nothing) if the foreground window belongs to
+    /// our own process — otherwise the interval-reminder "shake + walk to
+    /// focused window" flow would target the pet itself (e.g. right after the
+    /// pet window took focus due to a speech bubble / state change), which
+    /// looks like nothing happened to the user.
     pub fn capture_foreground_hwnd() -> bool {
         unsafe {
             let hwnd: HWND = GetForegroundWindow();
             if hwnd.0.is_null() {
+                return false;
+            }
+            let mut pid: u32 = 0;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            let self_pid = std::process::id();
+            if pid == self_pid {
                 return false;
             }
             CAPTURED_HWND.store(hwnd.0 as isize, Ordering::SeqCst);

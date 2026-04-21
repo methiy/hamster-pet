@@ -31,9 +31,11 @@ export interface AlertUserOptions {
  * High-intensity "hey look here" alert. Plays a sound, shakes the
  * foreground window, runs the pet there, and shows a speech bubble.
  *
- * On platforms where foreground-window capture is unavailable (non-Windows,
- * or the capture call returned false), falls back to shaking the pet's
- * own window and still shows the speech bubble.
+ * On platforms where foreground-window capture is unavailable (non-Windows),
+ * or when the foreground window is the pet itself (`capture_foreground_hwnd`
+ * refuses to capture our own process), falls back to only showing the speech
+ * bubble — we deliberately don't shake our own window, because the user
+ * wouldn't see it (they're looking at another app).
  */
 export function useAlertUser(deps: AlertUserDeps) {
   const { shakeWindowByHwnd } = useWindowShake()
@@ -58,7 +60,8 @@ export function useAlertUser(deps: AlertUserDeps) {
     }
 
     if (hwnd === null) {
-      await shakeWindowByHwnd(null)
+      // Foreground is our own pet window (or capture unavailable on this
+      // platform). Don't shake our own window — just show the speech bubble.
       deps.showSpeech(text)
       return
     }

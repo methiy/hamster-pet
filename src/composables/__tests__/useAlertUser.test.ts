@@ -26,7 +26,7 @@ describe('useAlertUser', () => {
     showSpeech = vi.fn()
   })
 
-  it('fallback path: shakes pet window when capture_foreground_hwnd returns false', async () => {
+  it('fallback path: skips shake and only shows speech when capture_foreground_hwnd returns false', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'capture_foreground_hwnd') return Promise.resolve(false)
       return Promise.resolve(null)
@@ -36,7 +36,7 @@ describe('useAlertUser', () => {
     await alertUserWithPet('hello')
 
     expect(playSound).toHaveBeenCalledWith('notification')
-    expect(shakeMock).toHaveBeenCalledWith(null)
+    expect(shakeMock).not.toHaveBeenCalled()
     expect(walkTo).not.toHaveBeenCalled()
     expect(showSpeech).toHaveBeenCalledWith('hello')
   })
