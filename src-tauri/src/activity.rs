@@ -286,9 +286,11 @@ pub mod platform {
     pub fn create_reminder_notepad(text: &str) -> Result<i64, String> {
         // 1. Compute desktop path
         let desktop = get_desktop_dir().ok_or_else(|| "cannot resolve desktop".to_string())?;
+        // Use millisecond resolution so two reminders firing in the same second
+        // produce distinct filenames.
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
+            .map(|d| d.as_millis())
             .unwrap_or(0);
         let filename = format!("reminder-{}.txt", ts);
         let full_path = desktop.join(&filename);
@@ -305,11 +307,18 @@ pub mod platform {
             .map_err(|e| format!("spawn notepad: {}", e))?;
         let target_pid = child.id();
 
-        // 4. Poll for HWND whose process PID matches
-        for _ in 0..20 {
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        // 4. Poll for HWND whose process PID matches. Check first (notepad can
+        // be ready in <100ms on fast machines), then sleep between attempts.
+        // EnumWindows is synchronous: the &mut state reference is valid for the
+        // full callback invocation. IsWindowVisible filters out transient
+        // invisible windows during notepad's creation sequence; the 2s retry
+        // budget covers the rare case of a late-to-show main window.
+        for i in 0..20 {
             if let Some(hwnd) = find_hwnd_by_pid(target_pid) {
                 return Ok(hwnd);
+            }
+            if i < 19 {
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
         }
         Err(format!("hwnd not found for pid {}", target_pid))
