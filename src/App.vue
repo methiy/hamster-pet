@@ -86,6 +86,7 @@ import { useWeather } from './composables/useWeather'
 import { usePanelWindow } from './composables/usePanelWindow'
 import { WEATHER_PHRASES } from './data/weatherPhrases'
 import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_PHRASES, GRAB_RELEASE_PHRASES } from './data/hamsterPhrases'
+import { useNotepadSlide } from './composables/useNotepadSlide'
 import { useMouseShakeDetector } from './composables/useMouseShakeDetector'
 import { useChaseCursor } from './composables/useChaseCursor'
 import type { BodyRegion } from './data/hamsterPhrases'
@@ -258,6 +259,9 @@ const { isChasing, startChase, cancel: cancelChase } = useChaseCursor({
     }, 1800)
   },
 })
+
+// --- Notepad-slide reminder feature ---
+const { slideNotepadReminder } = useNotepadSlide()
 
 const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
   // Don't start chase while other animations are active
@@ -924,10 +928,24 @@ onMounted(async () => {
   reminderTimer = setInterval(() => {
     const due = checkDueReminders()
     for (const r of due) {
-      showSpeechText(`📝 备忘提醒：${r.text}`)
-      showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
-      playSound('notification')
-      shakeWindow()
+      if (r.type === 'once') {
+        // Specific-time reminder: slide a real Notepad window in from off-screen
+        showSpeechText(`主人，到时间啦：${r.text.slice(0, 20)}`)
+        playSound('notification')
+        slideNotepadReminder(r.text).then((ok) => {
+          if (!ok) {
+            // Fallback to original behavior on non-Windows or any failure
+            showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
+            shakeWindow()
+          }
+        })
+      } else {
+        // Interval reminder: keep original shake behavior
+        showSpeechText(`📝 备忘提醒：${r.text}`)
+        showToast({ type: 'info', icon: '📝', title: '备忘提醒！', message: r.text.slice(0, 50) })
+        playSound('notification')
+        shakeWindow()
+      }
     }
   }, 30000)
   // Clamp after window is moved (e.g. user drags pet off-screen)
