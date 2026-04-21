@@ -618,6 +618,7 @@ export function usePushAnimation(callbacks: PushCallbacks) {
    * @param opts.speedMultiplier - Multiplier applied to walk speed.
    *   Values > 1 make the walk faster; values < 1 make it slower.
    *   Defaults to 1 (normal speed). The resulting duration is floored at 250 ms.
+   *   Non-finite or non-positive values are treated as the default (1).
    */
   async function startSummonWalk(
     targetPhysX: number,
@@ -649,7 +650,10 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         return
       }
 
-      const speedMul = Math.max(opts.speedMultiplier ?? 1, 0.1)
+      const rawMul = opts.speedMultiplier
+      const speedMul = Number.isFinite(rawMul) && (rawMul as number) > 0
+        ? Math.max(rawMul as number, 0.1)
+        : 1
       const baseDuration = Math.max(walkDist / WALK_SPEED, 800)
       const walkDuration = Math.max(baseDuration / speedMul, 250)
 
