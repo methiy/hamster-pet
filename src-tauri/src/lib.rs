@@ -54,6 +54,11 @@ fn get_hwnd_rect(hwnd: i64) -> Option<activity::WindowRect> {
     activity::platform::get_hwnd_rect(hwnd)
 }
 
+#[tauri::command]
+fn create_reminder_notepad(text: String) -> Result<i64, String> {
+    activity::platform::create_reminder_notepad(&text)
+}
+
 /// Atomically set window position and size in one OS call to avoid flicker.
 /// All values are in physical pixels.
 #[tauri::command]
@@ -118,7 +123,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 

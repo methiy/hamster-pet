@@ -33,12 +33,12 @@ pub struct CursorPosition {
 #[cfg(target_os = "windows")]
 pub mod platform {
     use super::*;
-    use windows::Win32::Foundation::{HWND, RECT, CloseHandle};
+    use windows::Win32::Foundation::{HWND, RECT, CloseHandle, LPARAM, BOOL};
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
         GetWindowRect as WinGetWindowRect,
         SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
-        GetCursorPos,
+        GetCursorPos, EnumWindows, IsWindowVisible,
     };
     use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -277,6 +277,83 @@ pub mod platform {
             }
         }
     }
+
+    use std::process::Command;
+    use std::path::PathBuf;
+
+    /// Create a txt file on the Desktop with the given text, open it with notepad,
+    /// and poll for the resulting HWND. Returns HWND as i64 on success.
+    pub fn create_reminder_notepad(text: &str) -> Result<i64, String> {
+        // 1. Compute desktop path
+        let desktop = get_desktop_dir().ok_or_else(|| "cannot resolve desktop".to_string())?;
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let filename = format!("reminder-{}.txt", ts);
+        let full_path = desktop.join(&filename);
+
+        // 2. Write UTF-8 BOM + text so notepad shows Chinese correctly
+        let mut bytes: Vec<u8> = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(text.as_bytes());
+        std::fs::write(&full_path, &bytes).map_err(|e| format!("write txt: {}", e))?;
+
+        // 3. Spawn notepad
+        let child = Command::new("notepad.exe")
+            .arg(&full_path)
+            .spawn()
+            .map_err(|e| format!("spawn notepad: {}", e))?;
+        let target_pid = child.id();
+
+        // 4. Poll for HWND whose process PID matches
+        for _ in 0..20 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if let Some(hwnd) = find_hwnd_by_pid(target_pid) {
+                return Ok(hwnd);
+            }
+        }
+        Err(format!("hwnd not found for pid {}", target_pid))
+    }
+
+    fn get_desktop_dir() -> Option<PathBuf> {
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            let desktop = PathBuf::from(&profile).join("Desktop");
+            if desktop.exists() { return Some(desktop); }
+            // OneDrive redirect fallback
+            let one = PathBuf::from(&profile).join("OneDrive").join("Desktop");
+            if one.exists() { return Some(one); }
+            return Some(desktop);
+        }
+        None
+    }
+
+    struct EnumState {
+        target_pid: u32,
+        found: isize,
+    }
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let state_ptr = lparam.0 as *mut EnumState;
+        let state = &mut *state_ptr;
+        if !IsWindowVisible(hwnd).as_bool() {
+            return BOOL(1);
+        }
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid == state.target_pid {
+            state.found = hwnd.0 as isize;
+            return BOOL(0); // stop
+        }
+        BOOL(1) // continue
+    }
+
+    fn find_hwnd_by_pid(pid: u32) -> Option<i64> {
+        let mut state = EnumState { target_pid: pid, found: 0 };
+        unsafe {
+            let _ = EnumWindows(Some(enum_proc), LPARAM(&mut state as *mut _ as isize));
+        }
+        if state.found != 0 { Some(state.found as i64) } else { None }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -317,5 +394,9 @@ pub mod platform {
 
     pub fn get_hwnd_rect(_hwnd_raw: i64) -> Option<WindowRect> {
         None
+    }
+
+    pub fn create_reminder_notepad(_text: &str) -> Result<i64, String> {
+        Err("unsupported platform".to_string())
     }
 }
