@@ -273,6 +273,10 @@ const { alertUserWithPet } = useAlertUser({
     await startSummonWalk(x, y, { speedMultiplier: opts?.speedMultiplier })
   },
   showSpeech: showSpeechText,
+  getPetPosition: async () => {
+    const pos = await getCurrentWindow().outerPosition()
+    return [pos.x, pos.y]
+  },
 })
 
 const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {

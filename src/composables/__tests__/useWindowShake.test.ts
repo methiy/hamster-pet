@@ -41,16 +41,19 @@ describe('useWindowShake', () => {
     await shakeWindowByHwnd(12345, { stepDuration: 0 })
 
     const setPosCalls = invokeMock.mock.calls.filter((c: any[]) => c[0] === 'set_hwnd_position')
-    expect(setPosCalls.length).toBe(11)
-    expect(setPosCalls[0][1]).toEqual({ hwnd: 12345, x: 506, y: 600 })
-    expect(setPosCalls[10][1]).toEqual({ hwnd: 12345, x: 500, y: 600 })
+    // 15-step shake sequence.
+    expect(setPosCalls.length).toBe(15)
+    // First step is (+14, 0) from origin (500, 600) at default intensity=14.
+    expect(setPosCalls[0][1]).toEqual({ hwnd: 12345, x: 514, y: 600 })
+    // Last step returns exactly to origin.
+    expect(setPosCalls[14][1]).toEqual({ hwnd: 12345, x: 500, y: 600 })
   })
 
   it('shakes the pet window when hwnd is null', async () => {
     const { shakeWindowByHwnd } = useWindowShake()
     await shakeWindowByHwnd(null, { stepDuration: 0 })
 
-    expect(setPositionMock).toHaveBeenCalledTimes(11)
+    expect(setPositionMock).toHaveBeenCalledTimes(15)
     const setHwndCalls = invokeMock.mock.calls.filter((c: any[]) => c[0] === 'set_hwnd_position')
     expect(setHwndCalls.length).toBe(0)
   })

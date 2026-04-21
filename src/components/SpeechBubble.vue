@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 import { watch } from 'vue'
+import { estimateSpeechDurationMs } from './speechDuration'
 
 const props = defineProps<{
   text: string
@@ -26,9 +27,7 @@ watch(() => props.visible, (v) => {
     hideTimer = null
   }
   if (v) {
-    // Longer text gets more display time (base 3s + 80ms per char over 10)
-    const extraChars = Math.max(0, props.text.length - 10)
-    const duration = 3000 + extraChars * 80
+    const duration = estimateSpeechDurationMs(props.text)
     hideTimer = setTimeout(() => {
       emit('hide')
     }, duration)

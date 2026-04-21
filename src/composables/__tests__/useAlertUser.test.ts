@@ -88,4 +88,73 @@ describe('useAlertUser', () => {
     await alertUserWithPet('x', { sound: 'summon' })
     expect(playSound).toHaveBeenCalledWith('summon')
   })
+
+  it('return-home: records pet position before alert and walks back after speech duration', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_foreground_hwnd_debug') {
+        return Promise.resolve({
+          captured: true, hwnd: 555, fg_pid: 1, self_pid: 2,
+          title: 'VSCode', reason: 'ok',
+        })
+      }
+      if (cmd === 'get_hwnd_rect') {
+        return Promise.resolve({ left: 0, top: 0, right: 200, bottom: 200 })
+      }
+      if (cmd === 'append_debug_log') return Promise.resolve('/tmp/log')
+      return Promise.resolve(null)
+    })
+
+    const getPetPosition = vi.fn(async () => [1234, 5678] as [number, number])
+
+    vi.useFakeTimers()
+    try {
+      const { alertUserWithPet } = useAlertUser({
+        playSound: playSound as any,
+        walkTo: walkTo as any,
+        showSpeech: showSpeech as any,
+        getPetPosition,
+      })
+      const p = alertUserWithPet('hi')
+      // Drain pending promises so the return-home setTimeout is scheduled,
+      // then fast-forward past it (speech duration + 300ms buffer).
+      await vi.advanceTimersByTimeAsync(20_000)
+      await p
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(getPetPosition).toHaveBeenCalledTimes(1)
+    // Two walkTo calls: one out to the target window center, one back home.
+    expect(walkTo).toHaveBeenCalledTimes(2)
+    expect(walkTo.mock.calls[0][0]).toEqual([100, 100])
+    expect(walkTo.mock.calls[1][0]).toEqual([1234, 5678])
+  })
+
+  it('return-home: disabled via returnHome=false option', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_foreground_hwnd_debug') {
+        return Promise.resolve({
+          captured: true, hwnd: 555, fg_pid: 1, self_pid: 2,
+          title: 'VSCode', reason: 'ok',
+        })
+      }
+      if (cmd === 'get_hwnd_rect') {
+        return Promise.resolve({ left: 0, top: 0, right: 200, bottom: 200 })
+      }
+      return Promise.resolve(null)
+    })
+
+    const getPetPosition = vi.fn(async () => [100, 200] as [number, number])
+
+    const { alertUserWithPet } = useAlertUser({
+      playSound: playSound as any,
+      walkTo: walkTo as any,
+      showSpeech: showSpeech as any,
+      getPetPosition,
+    })
+    await alertUserWithPet('hi', { returnHome: false })
+
+    expect(getPetPosition).not.toHaveBeenCalled()
+    expect(walkTo).toHaveBeenCalledTimes(1)
+  })
 })

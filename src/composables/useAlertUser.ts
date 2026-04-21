@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useWindowShake } from './useWindowShake'
+import { estimateSpeechDurationMs } from '../components/speechDuration'
 
 /** Matches Rust's WindowRect in activity.rs (serde default field casing). */
 interface WindowRect {
@@ -28,6 +29,12 @@ export interface AlertUserDeps {
   ) => Promise<void>
   /** Shows the pet's speech bubble with the given text. */
   showSpeech: (text: string) => void
+  /**
+   * Read the pet window's current physical position. Used to remember the
+   * "home" spot so the pet can return there after delivering the reminder.
+   * Optional: when omitted, the pet just stays at the target window.
+   */
+  getPetPosition?: () => Promise<[number, number]>
 }
 
 export interface AlertUserOptions {
@@ -35,6 +42,11 @@ export interface AlertUserOptions {
   sound?: string
   /** Pet speed multiplier during the walk step. Default 3 (fast). */
   petSpeed?: number
+  /**
+   * After the bubble closes, walk the pet back to where it was before the
+   * alert. Default true. Has no effect if `getPetPosition` dep is absent.
+   */
+  returnHome?: boolean
 }
 
 /**
@@ -62,8 +74,22 @@ export function useAlertUser(deps: AlertUserDeps) {
   ): Promise<void> {
     const sound = opts.sound ?? 'notification'
     const speedMul = opts.petSpeed ?? 3
+    const returnHome = opts.returnHome ?? true
 
     deps.playSound(sound)
+
+    // Remember where the pet was before we drag it off to the foreground
+    // window. We do this as early as possible so subsequent animations
+    // (shake, walk) can't accidentally overwrite our notion of "home".
+    let home: [number, number] | null = null
+    if (returnHome && deps.getPetPosition) {
+      try {
+        home = await deps.getPetPosition()
+        dbg(`home: (${home[0]}, ${home[1]})`)
+      } catch (e) {
+        dbg(`getPetPosition threw: ${String(e)}`)
+      }
+    }
 
     let hwnd: number | null = null
     try {
@@ -81,6 +107,7 @@ export function useAlertUser(deps: AlertUserDeps) {
       dbg('fallback: null hwnd, speech-only')
       // Foreground is our own pet window (or capture unavailable on this
       // platform). Don't shake our own window — just show the speech bubble.
+      // No need to walk back either, since we never walked out.
       deps.showSpeech(text)
       return
     }
@@ -120,6 +147,21 @@ export function useAlertUser(deps: AlertUserDeps) {
 
     await shakePromise
     deps.showSpeech(text)
+
+    // Walk back home once the bubble has had time to be read. We mirror the
+    // SpeechBubble's own duration formula (plus a small buffer so we don't
+    // start walking the instant the bubble disappears).
+    if (home) {
+      const speechMs = estimateSpeechDurationMs(text)
+      dbg(`schedule return home in ${speechMs + 300}ms`)
+      await new Promise(r => setTimeout(r, speechMs + 300))
+      try {
+        await deps.walkTo(home, { speedMultiplier: speedMul })
+        dbg('returned home')
+      } catch (e) {
+        dbg(`return walkTo threw: ${String(e)}`)
+      }
+    }
   }
 
   return { alertUserWithPet }
