@@ -59,6 +59,23 @@ fn create_reminder_notepad(text: String) -> Result<i64, String> {
     activity::platform::create_reminder_notepad(&text)
 }
 
+/// Write a reminder text file to the app data directory (`<appDataDir>/reminder.txt`),
+/// overwriting any prior one. UTF-8 BOM is prepended so external tools that
+/// open the file still display Chinese correctly. Returns the absolute path written.
+#[tauri::command]
+fn write_reminder_file(app: tauri::AppHandle, text: String) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app_data_dir: {}", e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    let path = dir.join("reminder.txt");
+    let mut bytes: Vec<u8> = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(text.as_bytes());
+    std::fs::write(&path, &bytes).map_err(|e| format!("write: {}", e))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Atomically set window position and size in one OS call to avoid flicker.
 /// All values are in physical pixels.
 #[tauri::command]
@@ -123,7 +140,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 

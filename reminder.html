@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>记事本 - 提醒</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: Consolas, "Courier New", "Microsoft YaHei", monospace;
+        background: #ffffff;
+        color: #111;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #title-bar {
+        height: 28px;
+        background: #f3f3f3;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px;
+        font-size: 12px;
+        color: #444;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+      #close-btn {
+        width: 44px;
+        height: 24px;
+        border: none;
+        background: transparent;
+        font-size: 14px;
+        cursor: pointer;
+        color: #666;
+        line-height: 1;
+        -webkit-app-region: no-drag;
+      }
+      #close-btn:hover {
+        background: #e81123;
+        color: #fff;
+      }
+      #menu-bar {
+        height: 22px;
+        background: #fafafa;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 12px;
+        color: #555;
+        user-select: none;
+      }
+      #menu-bar span {
+        margin-right: 14px;
+      }
+      #content {
+        padding: 10px 12px;
+        font-size: 14px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        height: calc(100vh - 50px);
+        overflow: auto;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="title-bar">
+      <span id="title-text">📝 reminder.txt - 记事本</span>
+      <button id="close-btn" title="关闭">✕</button>
+    </div>
+    <div id="menu-bar">
+      <span>文件</span><span>编辑</span><span>格式</span><span>查看</span><span>帮助</span>
+    </div>
+    <div id="content"></div>
+    <script type="module">
+      import { getCurrentWindow } from '@tauri-apps/api/window'
+
+      const params = new URLSearchParams(location.search)
+      const rawText = params.get('text') ?? ''
+      const text = decodeURIComponent(rawText)
+      document.getElementById('content').textContent = text
+
+      document.getElementById('close-btn').addEventListener('click', () => {
+        try { getCurrentWindow().close() } catch { window.close() }
+      })
+    </script>
+  </body>
+</html>
