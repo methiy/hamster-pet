@@ -614,8 +614,16 @@ export function usePushAnimation(callbacks: PushCallbacks) {
   /**
    * Summon walk: pet walks from current position to a target position (physical pixels),
    * shows a happy reaction and speech on arrival.
+   *
+   * @param opts.speedMultiplier - Multiplier applied to walk speed.
+   *   Values > 1 make the walk faster; values < 1 make it slower.
+   *   Defaults to 1 (normal speed). The resulting duration is floored at 250 ms.
    */
-  async function startSummonWalk(targetPhysX: number, targetPhysY: number) {
+  async function startSummonWalk(
+    targetPhysX: number,
+    targetPhysY: number,
+    opts: { speedMultiplier?: number } = {}
+  ) {
     if (isPushing.value) return
     cancelled = false
     isPushing.value = true
@@ -641,7 +649,9 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         return
       }
 
-      const walkDuration = Math.max(walkDist / WALK_SPEED, 800)
+      const speedMul = Math.max(opts.speedMultiplier ?? 1, 0.1)
+      const baseDuration = Math.max(walkDist / WALK_SPEED, 800)
+      const walkDuration = Math.max(baseDuration / speedMul, 250)
 
       isWalking.value = true
       pushDirection.value = dx > 0 ? 'right' : 'left'
