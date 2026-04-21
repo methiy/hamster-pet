@@ -1,5 +1,5 @@
 <template>
-  <div class="hamster-sprite" :class="{ 'hamster-lifted': isGrabbed }">
+  <div class="hamster-sprite" :class="{ 'hamster-lifted': isGrabbed, 'chase-wiggle': wiggle }">
     <canvas ref="canvasRef" :class="animClass"></canvas>
     <div
       class="hit-layer"
@@ -33,6 +33,7 @@ const CANVAS_SIZE = 128
 
 const props = defineProps<{
   state: SpriteState
+  wiggle?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +43,7 @@ const emit = defineEmits<{
   'grab-start': []
   'grab-move': [screenX: number, screenY: number]
   'grab-end': []
+  'hit-mousemove': [e: MouseEvent]
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -225,6 +227,8 @@ function onClick(e: MouseEvent) {
 }
 
 function onHover(e: MouseEvent) {
+  // Always emit raw mousemove for shake detection, regardless of hit test
+  emit('hit-mousemove', e)
   const coords = getPixelCoords(e)
   if (!coords || !isHamsterPixel(coords.x, coords.y)) {
     emit('region-hover', null)
@@ -342,5 +346,15 @@ onUnmounted(() => {
   50% { transform: scale(0.95); }
   70% { transform: scale(1.03); }
   100% { transform: scale(1); }
+}
+
+/* Cursor-chase prank: brief body wiggle on prank reveal */
+@keyframes chase-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-8deg); }
+  75%      { transform: rotate(8deg); }
+}
+.hamster-sprite.chase-wiggle {
+  animation: chase-wiggle 0.3s ease-in-out 6;
 }
 </style>
