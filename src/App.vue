@@ -89,6 +89,7 @@ import { CLICK_PHRASES, HOVER_PHRASES, REACTION_MAP, GRAB_PHRASES, GRAB_HOLDING_
 import { useNotepadSlide } from './composables/useNotepadSlide'
 import { useMouseShakeDetector } from './composables/useMouseShakeDetector'
 import { useChaseCursor } from './composables/useChaseCursor'
+import { useWindowShake } from './composables/useWindowShake'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { SUMMON_PHRASES } from './data/activityPhrases'
@@ -262,6 +263,8 @@ const { isChasing, startChase, cancel: cancelChase } = useChaseCursor({
 
 // --- Notepad-slide reminder feature ---
 const { slideNotepadReminder } = useNotepadSlide()
+
+const { shakeWindowByHwnd } = useWindowShake()
 
 const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
   // Don't start chase while other animations are active
@@ -777,21 +780,7 @@ function onChangeWeatherCity(value: string) {
 }
 
 async function shakeWindow() {
-  try {
-    const win = getCurrentWindow()
-    const pos = await win.outerPosition()
-    const origX = pos.x
-    const origY = pos.y
-    const offsets = [
-      [6, 0], [-6, 0], [0, 6], [0, -6],
-      [4, 0], [-4, 0], [0, 4], [0, -4],
-      [2, 0], [-2, 0], [0, 0],
-    ]
-    for (const [dx, dy] of offsets) {
-      await win.setPosition(new PhysicalPosition(origX + dx, origY + dy))
-      await new Promise(r => setTimeout(r, 40))
-    }
-  } catch { /* Not in Tauri */ }
+  await shakeWindowByHwnd(null)
 }
 
 function onTogglePassThrough(value: boolean) {
