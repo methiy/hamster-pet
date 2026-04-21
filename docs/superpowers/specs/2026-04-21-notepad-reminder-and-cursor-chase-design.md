@@ -286,4 +286,3 @@ App.vue
 - 不做 notepad 关闭时回滑动画：用户明确要「停住，手动关闭」
 - 不做功能 1 在 macOS/Linux 的等价实现：先 Windows-only
 - 不做 chase 期间阻止用户拖动：pet 窗口已是 draggable，不特殊处理
-- 不做 .txt 文件自动清理：放桌面由用户自己删（符合用户「放桌面」的意图）
