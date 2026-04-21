@@ -65,7 +65,9 @@ export function useAlertUser(deps: AlertUserDeps) {
 
     // Fire shake and walk in parallel so the pet starts moving while the
     // foreground window is still wobbling.
-    const shakePromise = shakeWindowByHwnd(hwnd)
+    // Attach a no-op .catch so a rejection during the in-flight shake doesn't
+    // fire unhandledRejection before we await it at the bottom of this function.
+    const shakePromise = shakeWindowByHwnd(hwnd).catch(() => {})
 
     let rect: HwndRect | null = null
     try {
