@@ -12,11 +12,17 @@ const BASE_OFFSETS: Array<[number, number]> = [
   [2, 0], [-2, 0], [0, 0],
 ]
 
-interface HwndRect {
-  x: number
-  y: number
-  width: number
-  height: number
+/** Matches Rust's WindowRect in activity.rs — serde emits the struct's
+ * field names verbatim, so this is {left,top,right,bottom}, NOT
+ * {x,y,width,height}. Historically this was typed wrong here; all reads
+ * produced undefined, offsets collapsed to NaN, and set_hwnd_position
+ * silently rejected at the invoke boundary.
+ */
+interface WindowRect {
+  left: number
+  top: number
+  right: number
+  bottom: number
 }
 
 export interface WindowShakeOptions {
@@ -56,10 +62,10 @@ export function useWindowShake() {
           if (stepDuration > 0) await new Promise(r => setTimeout(r, stepDuration))
         }
       } else {
-        const rect = await invoke<HwndRect | null>('get_hwnd_rect', { hwnd })
+        const rect = await invoke<WindowRect | null>('get_hwnd_rect', { hwnd })
         if (!rect) return
-        const origX = rect.x
-        const origY = rect.y
+        const origX = rect.left
+        const origY = rect.top
         for (const [dx, dy] of BASE_OFFSETS) {
           await invoke('set_hwnd_position', {
             hwnd,

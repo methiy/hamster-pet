@@ -32,7 +32,8 @@ describe('useWindowShake', () => {
 
   it('shakes a specific hwnd via set_hwnd_position when hwnd is provided', async () => {
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'get_hwnd_rect') return Promise.resolve({ x: 500, y: 600, width: 400, height: 300 })
+      // Match Rust's WindowRect serialization.
+      if (cmd === 'get_hwnd_rect') return Promise.resolve({ left: 500, top: 600, right: 900, bottom: 900 })
       return Promise.resolve(null)
     })
 
@@ -56,7 +57,7 @@ describe('useWindowShake', () => {
 
   it('scales offsets by intensity parameter', async () => {
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'get_hwnd_rect') return Promise.resolve({ x: 0, y: 0, width: 100, height: 100 })
+      if (cmd === 'get_hwnd_rect') return Promise.resolve({ left: 0, top: 0, right: 100, bottom: 100 })
       return Promise.resolve(null)
     })
 
