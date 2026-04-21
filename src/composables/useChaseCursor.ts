@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { invoke } from '@tauri-apps/api/core'
 import type { HamsterState } from './useHamster'
+import type { SoundName } from './useAudio'
 import {
   CHASE_START_PHRASES,
   CHASE_CATCH_PHRASES,
@@ -43,7 +44,7 @@ export function shouldTriggerPrank(roll: number, prankChance: number): boolean {
 interface ChaseCallbacks {
   showSpeech: (text: string) => void
   triggerReaction: (state: HamsterState, duration: number) => void
-  playSound: (name: string) => void
+  playSound: (name: SoundName) => void
   onPrank?: () => void
 }
 

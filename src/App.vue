@@ -247,7 +247,7 @@ const chaseWiggle = ref(false)
 const { isChasing, startChase } = useChaseCursor({
   showSpeech: showSpeechText,
   triggerReaction,
-  playSound: (name: string) => playSound(name as any),
+  playSound,
   onPrank: () => {
     chaseWiggle.value = true
     setTimeout(() => { chaseWiggle.value = false }, 1800)
