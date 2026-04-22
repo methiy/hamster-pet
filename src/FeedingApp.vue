@@ -1,5 +1,5 @@
 <template>
-  <div class="overlay" :class="{ 'waiting-click': waitingClick }" @mousedown="onClick">
+  <div class="overlay" @mousedown="onClick">
     <div
       v-for="s in snacks"
       :key="s.id"
@@ -40,7 +40,13 @@ const GRAVITY = 0.8 // px/frame² — feels plausible at 60fps
 const SNACK_SIZE = 48 // px, matches CSS font-size below
 const LIFETIME_MS = 10_000 // snack lingers 10s before fading out if uneaten
 
-const waitingClick = ref(true)
+/**
+ * True while the user is inside feeding mode (since the last Ctrl+Shift+E
+ * / tray menu entry, until they press Esc). While active, the overlay is
+ * always on top and intercepts every mouse click as "drop a snack". While
+ * inactive, the overlay is hidden entirely.
+ */
+const feedingActive = ref(false)
 const snacks = ref<Snack[]>([])
 let nextId = 1
 let rafId: number | null = null
@@ -52,43 +58,21 @@ function pickEmoji(): string {
 }
 
 function computeGroundY(): number {
-  // We want the snack to rest on what the user perceives as "the bottom
-  // of the screen" — which on Windows is the top edge of the taskbar,
-  // NOT the absolute bottom pixel. Our overlay window is sized to the
-  // full monitor (so we can capture clicks over the taskbar too), so
-  // innerHeight here is the full screen height and would place the
-  // snack hidden *behind* the taskbar.
-  //
-  // window.screen.availHeight is the work-area height (monitor height
-  // minus taskbar and other docked bars) in CSS pixels — exactly what
-  // we want.
-  const dpr = window.devicePixelRatio || 1
-  // availHeight is in CSS pixels at the system scale; convert to the
-  // overlay's CSS pixels. In single-monitor setups these are equal.
+  // window.screen.availHeight is the work-area height (monitor minus
+  // taskbar / docked bars) in CSS pixels — we rest the snack on the
+  // taskbar's top edge, not behind it.
   const workAreaCssH = Math.floor(window.screen.availHeight)
-  // Clamp: if the API misreports, fall back to innerHeight so we at
-  // least stay on-screen.
   const candidate = workAreaCssH - SNACK_SIZE - 4
   const fallback = window.innerHeight - SNACK_SIZE - 4
   return Math.min(candidate, fallback)
-  void dpr
 }
 
 function onClick(e: MouseEvent) {
-  if (!waitingClick.value) return
-  // We consumed the click; from now on pointer events should pass
-  // through so the user can keep working while the snack is falling.
-  // Also drop always-on-top so the pet window (which is also
-  // alwaysOnTop) renders *above* the snack overlay — otherwise the
-  // pet walking over to eat would be hidden behind this full-screen
-  // window.
-  waitingClick.value = false
-  try {
-    getCurrentWindow().setIgnoreCursorEvents(true)
-  } catch { /* non-Tauri or API missing */ }
-  try {
-    getCurrentWindow().setAlwaysOnTop(false)
-  } catch { /* ignore */ }
+  if (!feedingActive.value) return
+  // Every click while feeding mode is active spawns a new snack. The
+  // overlay stays click-capturing and always-on-top for the whole
+  // session — the only way out is Esc. This is deliberate: the user
+  // asked for a mode where "feed, feed, feed" is frictionless.
 
   const snack: Snack = {
     id: nextId++,
@@ -101,44 +85,36 @@ function onClick(e: MouseEvent) {
     opacity: 1,
   }
   snacks.value.push(snack)
+  ensureLoop()
 
-  // Notify the pet side with physical screen coordinates so the pet can
-  // decide whether to walk over. We translate the overlay's local y to
-  // a physical monitor y using devicePixelRatio — in practice these are
-  // equal for most single-monitor setups, but we handle HiDPI just in
-  // case.
+  // Notify the pet side with physical screen coordinates so it can walk
+  // over. devicePixelRatio handles HiDPI; on standard 100% scaling it's
+  // just 1.
   const dpr = window.devicePixelRatio || 1
   const physX = Math.round((snack.x + SNACK_SIZE / 2) * dpr)
   const physY = Math.round((snack.groundY + SNACK_SIZE / 2) * dpr)
   emit('snack-dropped', { id: snack.id, physX, physY, emoji: snack.emoji }).catch(() => {})
 
-  // Schedule an auto-expire: if the pet never comes, fade and remove
-  // the snack after LIFETIME_MS (measured from landing, approximately).
+  // Auto-expire after LIFETIME_MS if the pet never ate this particular
+  // snack (pet may have been busy with a previous one, or full).
   setTimeout(() => {
     fadeOutAndRemove(snack.id)
-  }, LIFETIME_MS + 2000) // +2s rough estimate of falling time
+  }, LIFETIME_MS + 2000)
 }
 
 function tick() {
-  let anyMoving = false
   for (const s of snacks.value) {
     if (s.eaten) continue
     if (s.y < s.groundY) {
       s.vy += GRAVITY
       s.y = Math.min(s.y + s.vy, s.groundY)
-      anyMoving = true
     }
   }
-  // Keep the loop running while anything is falling OR while there are
-  // snacks at all (opacity transitions also need frames). Using a
-  // coarse "always loop while snacks exist" rule is fine — it's one
-  // empty frame per tick, negligible cost.
   if (snacks.value.length > 0) {
     rafId = requestAnimationFrame(tick)
   } else {
     rafId = null
   }
-  void anyMoving // (kept for possible future use, e.g. pause when idle)
 }
 
 function ensureLoop() {
@@ -150,7 +126,6 @@ function ensureLoop() {
 function fadeOutAndRemove(id: number) {
   const s = snacks.value.find((x) => x.id === id)
   if (!s) return
-  // Simple CSS-driven-by-data fade: step opacity down each frame.
   const fadeStart = performance.now()
   const FADE_MS = 600
   function step(now: number) {
@@ -159,14 +134,10 @@ function fadeOutAndRemove(id: number) {
     s.opacity = Math.max(0, 1 - t)
     if (t >= 1) {
       snacks.value = snacks.value.filter((x) => x.id !== id)
-      // If no snacks remain, hide the overlay. We do NOT reset
-      // waitingClick or cursor-events here — that's the job of the
-      // next enter() on the pet side, which emits feeding:reset.
-      // Otherwise a stale, hidden overlay would silently grab the
-      // user's clicks and keep dropping snacks forever.
-      if (snacks.value.length === 0) {
-        try { getCurrentWindow().hide() } catch { /* ignore */ }
-      }
+      // Note: we do NOT hide the overlay or disable click capture here.
+      // In "continuous feeding" mode the overlay stays armed until the
+      // user presses Esc; otherwise they'd have to re-press the hotkey
+      // between every snack.
     } else {
       requestAnimationFrame(step)
     }
@@ -174,56 +145,51 @@ function fadeOutAndRemove(id: number) {
   requestAnimationFrame(step)
 }
 
-onMounted(async () => {
-  // Start waiting for click: overlay must capture mouse events.
-  try {
-    await getCurrentWindow().setIgnoreCursorEvents(false)
-  } catch { /* ignore */ }
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (!feedingActive.value) return
+  exitFeedingMode()
+}
 
-  // Listen for pet confirming it's about to eat snack N — mark it
-  // eaten so the fall animation (if still running) pins it to the
-  // ground, then fade it out after a short delay to let the pet's
-  // eating state play out.
+async function exitFeedingMode() {
+  feedingActive.value = false
+  // Fully tear down: make the overlay pass-through, disable topmost,
+  // hide it so the user is back to a normal desktop. We intentionally
+  // do NOT clear `snacks` — any snack still falling or pending eating
+  // should keep playing out, but clicks won't spawn new ones.
+  try { await getCurrentWindow().setIgnoreCursorEvents(true) } catch { /* ignore */ }
+  try { await getCurrentWindow().setAlwaysOnTop(false) } catch { /* ignore */ }
+  try { await getCurrentWindow().hide() } catch { /* ignore */ }
+}
+
+onMounted(async () => {
+  // On first load the overlay is already visible (enter() showed it
+  // right before we mounted). Make sure we're in a "clickable" state
+  // and armed.
+  feedingActive.value = true
+  try { await getCurrentWindow().setIgnoreCursorEvents(false) } catch { /* ignore */ }
+
+  // Pet tells us a specific snack is being eaten — pin it to the
+  // ground and fade it.
   unlistenSnackEaten = await listen<{ id: number }>('snack-eaten', (event) => {
     const s = snacks.value.find((x) => x.id === event.payload.id)
     if (!s) return
     s.eaten = true
-    // Ensure snack is visually on the ground before the pet arrives.
     s.y = s.groundY
-    // Let the pet play eating for ~3s, then fade the snack out.
     setTimeout(() => fadeOutAndRemove(s.id), 3000)
   })
 
-  // The pet side's useFeedingOverlay.enter() emits feeding:reset each
-  // time the user re-enters feeding mode. That's the only place where
-  // we're allowed to re-arm the click capture: doing it automatically
-  // after a snack finishes would let the now-hidden overlay keep
-  // eating the user's clicks indefinitely (the "unlimited feeding"
-  // bug from 0.7.31).
+  // Every time the user (re-)enters feeding mode from the pet window
+  // (Ctrl+Shift+E or tray item), re-arm this overlay: even if the
+  // user previously Esc'd, we're back to capturing clicks.
   unlistenReset = await listen<null>('feeding:reset', async () => {
-    waitingClick.value = true
+    feedingActive.value = true
     try { await getCurrentWindow().setIgnoreCursorEvents(false) } catch { /* ignore */ }
     try { await getCurrentWindow().setAlwaysOnTop(true) } catch { /* ignore */ }
   })
 
-  // Esc cancels the mode while we're still waiting for a click. After a
-  // snack has already been dropped we let the fall+fade finish normally
-  // — there's nothing to cancel at that point and pressing Esc in
-  // another app shouldn't accidentally yank the snack away.
   window.addEventListener('keydown', onKey)
-
-  ensureLoop()
 })
-
-function onKey(e: KeyboardEvent) {
-  if (e.key !== 'Escape') return
-  if (!waitingClick.value) return
-  // Cancel: hide the overlay and reset for the next enter.
-  try {
-    getCurrentWindow().hide()
-  } catch { /* ignore */ }
-  waitingClick.value = true
-}
 
 onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId)
@@ -237,14 +203,8 @@ onUnmounted(() => {
 .overlay {
   position: fixed;
   inset: 0;
-  /* Transparent so the desktop beneath shows through. */
   background: transparent;
-  /* Never show a cursor here while waiting — Tauri can't change the
-     system cursor easily, but we can at least cue the user via CSS. */
   cursor: crosshair;
-}
-.overlay:not(.waiting-click) {
-  cursor: default;
 }
 .snack {
   position: absolute;
@@ -256,7 +216,6 @@ onUnmounted(() => {
   user-select: none;
   pointer-events: none;
   transition: opacity 0.1s linear;
-  /* A soft drop shadow so the emoji reads on any desktop color. */
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 </style>

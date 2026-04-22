@@ -825,6 +825,11 @@ let unlistenTrayAction: (() => void) | null = null
 let unlistenRequestData: (() => void) | null = null
 let unlistenMoved: (() => void) | null = null
 let unlistenSnackDropped: (() => void) | null = null
+// Guards the drop -> walk -> eat -> walk-home sequence. While true,
+// additional dropped snacks are ignored (they'll still fall and fade
+// out on the overlay's own timer). This keeps pet behavior coherent
+// when the user rapid-fires clicks in feeding mode.
+let busyWithSnack = false
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1073,48 +1078,53 @@ onMounted(async () => {
     })
   } catch { /* Not in Tauri */ }
 
-  // Listen for a snack being dropped by the feeding overlay. We decide
-  // whether the pet is "hungry enough" to walk over: Q2=a means we
-  // simply gate on today's feed count (`feedsToday < 3`).
+  // Listen for a snack being dropped by the feeding overlay. With
+  // continuous feeding mode (Ctrl+Shift+E → click-click-click → Esc)
+  // we no longer gate on hunger — every snack is eaten — but we do
+  // serialize: if the pet is already walking to / eating a previous
+  // snack, we drop the new event on the floor (the overlay will still
+  // fade the snack out on its own timer, so it's just visual confetti).
   try {
     unlistenSnackDropped = await feeding.onSnackDropped(async (ev) => {
-      const feedsToday = status.value.feedsToday ?? 0
-      if (feedsToday >= 3) {
-        // Not hungry — leave the snack on the ground; the overlay will
-        // fade it out on its own timer. A tiny speech reaction helps
-        // the user understand why nothing's happening.
-        showSpeechText('现在还不饿，谢谢主人~')
-        return
-      }
-
-      // Remember where the pet was, so we can walk back home after
-      // eating. This mirrors the reminder-alert return-home flow.
-      let home: [number, number] | null = null
+      if (busyWithSnack) return
+      busyWithSnack = true
       try {
-        const pos = await getCurrentWindow().outerPosition()
-        home = [pos.x, pos.y]
-      } catch { /* ignore */ }
-
-      // Walk to the snack. `ev.physX` / `ev.physY` are already monitor-
-      // physical coordinates (the overlay multiplied by devicePixelRatio).
-      try {
-        await startSummonWalk(ev.physX, ev.physY, { speedMultiplier: 2 })
-      } catch { /* ignore — walk may be interrupted */ }
-
-      // Pet has arrived — switch to eating state and notify the
-      // overlay so it can fade the snack away.
-      feedHamster()
-      recordFeed()
-      tauriEmit('snack-eaten', { id: ev.id }).catch(() => {})
-
-      // After the eating state has had a moment, walk back home.
-      // Eating state in useHamster is 3-6s — we wait ~3.5s to be safe.
-      setTimeout(async () => {
-        if (!home) return
+        // Bump the pet window to the very top of the topmost band —
+        // the feeding overlay is also alwaysOnTop, and on Windows the
+        // last-promoted topmost wins. Flip off → on to force a promote.
         try {
-          await startSummonWalk(home[0], home[1], { speedMultiplier: 2 })
+          const win = getCurrentWindow()
+          await win.setAlwaysOnTop(false)
+          await win.setAlwaysOnTop(true)
         } catch { /* ignore */ }
-      }, 3500)
+
+        let home: [number, number] | null = null
+        try {
+          const pos = await getCurrentWindow().outerPosition()
+          home = [pos.x, pos.y]
+        } catch { /* ignore */ }
+
+        try {
+          await startSummonWalk(ev.physX, ev.physY, { speedMultiplier: 2 })
+        } catch { /* ignore — walk may be interrupted */ }
+
+        feedHamster()
+        recordFeed()
+        tauriEmit('snack-eaten', { id: ev.id }).catch(() => {})
+
+        // Wait out the eating state (~3s) before walking home. We do
+        // this inline (not via setTimeout) so the busy flag stays set
+        // across the whole sequence and concurrent drops are ignored
+        // until the pet is fully idle again.
+        await new Promise((r) => setTimeout(r, 3200))
+        if (home) {
+          try {
+            await startSummonWalk(home[0], home[1], { speedMultiplier: 2 })
+          } catch { /* ignore */ }
+        }
+      } finally {
+        busyWithSnack = false
+      }
     })
   } catch { /* Not in Tauri */ }
 })
