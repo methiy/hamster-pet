@@ -107,7 +107,16 @@ function tick() {
     if (s.eaten) continue
     if (s.y < s.groundY) {
       s.vy += GRAVITY
-      s.y = Math.min(s.y + s.vy, s.groundY)
+      const newY = Math.min(s.y + s.vy, s.groundY)
+      const justLanded = s.y < s.groundY && newY >= s.groundY
+      s.y = newY
+      if (justLanded) {
+        // Tell the pet side the snack has settled. The pet may have
+        // already reached the snack's anticipated ground position
+        // (since it walks in parallel with the fall); if so, it was
+        // waiting for this event to start eating.
+        emit('snack-landed', { id: s.id }).catch(() => {})
+      }
     }
   }
   if (snacks.value.length > 0) {
@@ -169,14 +178,14 @@ onMounted(async () => {
   feedingActive.value = true
   try { await getCurrentWindow().setIgnoreCursorEvents(false) } catch { /* ignore */ }
 
-  // Pet tells us a specific snack is being eaten — pin it to the
-  // ground and fade it.
   unlistenSnackEaten = await listen<{ id: number }>('snack-eaten', (event) => {
     const s = snacks.value.find((x) => x.id === event.payload.id)
     if (!s) return
     s.eaten = true
-    s.y = s.groundY
-    setTimeout(() => fadeOutAndRemove(s.id), 3000)
+    // Don't snap the snack to the ground — let it fade out from
+    // wherever it currently is. Snapping looked jarring when the pet
+    // reached the snack mid-fall (cat + snack appeared to teleport).
+    fadeOutAndRemove(s.id)
   })
 
   // Every time the user (re-)enters feeding mode from the pet window

@@ -830,6 +830,42 @@ let unlistenSnackDropped: (() => void) | null = null
 // out on the overlay's own timer). This keeps pet behavior coherent
 // when the user rapid-fires clicks in feeding mode.
 let busyWithSnack = false
+/**
+ * Resolves when the overlay emits snack-landed for the given snack id,
+ * or after timeoutMs. Used so the pet waits for the snack to actually
+ * settle on the ground before switching to eating state — otherwise
+ * fast pets catch up mid-fall and appear to chew empty air.
+ */
+function waitForSnackLanded(id: number, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false
+    let unlisten: (() => void) | null = null
+    const timer = setTimeout(() => {
+      if (done) return
+      done = true
+      unlisten?.()
+      resolve()
+    }, timeoutMs)
+    listen<{ id: number }>('snack-landed', (event) => {
+      if (event.payload.id !== id) return
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      unlisten?.()
+      resolve()
+    }).then((fn) => {
+      // If the snack already landed before we registered, the listener
+      // never fires; the timeout above covers that case.
+      unlisten = fn
+      if (done) fn()
+    }).catch(() => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1099,24 +1135,49 @@ onMounted(async () => {
         } catch { /* ignore */ }
 
         let home: [number, number] | null = null
+        let petW = 150
+        let petH = 170
         try {
           const pos = await getCurrentWindow().outerPosition()
           home = [pos.x, pos.y]
+          const size = await getCurrentWindow().outerSize()
+          petW = size.width
+          petH = size.height
         } catch { /* ignore */ }
 
+        // startSummonWalk moves the pet window's top-left to (x, y).
+        // The snack's physX/physY is the snack's *center* in physical
+        // pixels. We want the cat's face/paws (roughly the bottom-center
+        // of the pet window) to end up on top of the snack, so shift
+        // the target by -petW/2 horizontally and -(petH - small offset)
+        // vertically. The "~18px from bottom" offset puts the pet's
+        // mouth — not its feet — on the snack.
+        const MOUTH_FROM_BOTTOM = 18
+        const targetX = ev.physX - Math.floor(petW / 2)
+        const targetY = ev.physY - (petH - MOUTH_FROM_BOTTOM)
+
         try {
-          await startSummonWalk(ev.physX, ev.physY, { speedMultiplier: 2 })
+          await startSummonWalk(targetX, targetY, { speedMultiplier: 2 })
         } catch { /* ignore — walk may be interrupted */ }
 
+        // Pet has reached the spot. If the snack hasn't landed yet
+        // (overlay is racing the fall vs. our walk), wait up to 1.5s
+        // for the snack-landed event before eating. This prevents the
+        // cat from chomping at thin air mid-flight.
+        await waitForSnackLanded(ev.id, 1500)
+
+        // Touch = eat: pet just arrived, so consume the snack *now*.
+        // feedHamster() switches to the eating sprite; emitting
+        // snack-eaten tells the overlay to fade the snack (which it
+        // does immediately, not after an artificial 3s delay).
         feedHamster()
         recordFeed()
         tauriEmit('snack-eaten', { id: ev.id }).catch(() => {})
 
-        // Wait out the eating state (~3s) before walking home. We do
-        // this inline (not via setTimeout) so the busy flag stays set
-        // across the whole sequence and concurrent drops are ignored
-        // until the pet is fully idle again.
-        await new Promise((r) => setTimeout(r, 3200))
+        // Keep the pet parked on-snack for the eating animation — the
+        // snack is already disappearing, but the cat still needs time
+        // to play the chew frames before walking home.
+        await new Promise((r) => setTimeout(r, 2500))
         if (home) {
           try {
             await startSummonWalk(home[0], home[1], { speedMultiplier: 2 })
