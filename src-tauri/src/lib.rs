@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::Manager;
 use tauri::Emitter;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
@@ -6,6 +8,107 @@ mod activity;
 mod tray;
 
 use activity::{ActiveWindowInfo, IdleInfo, CursorPosition};
+
+/// Map from logical shortcut id (e.g. "summon") to its currently-bound
+/// accelerator string (e.g. "Ctrl+Shift+P"). Kept in a Mutex so that
+/// the `rebind_shortcut` command can unregister the old binding before
+/// swapping in a new one.
+struct ShortcutBindings(Mutex<HashMap<String, String>>);
+
+/// The action each shortcut id fires when pressed. Centralized so
+/// rebinding only needs to re-attach the same handler to a new
+/// accelerator; the emit payload never changes.
+fn emit_for_id(app: &tauri::AppHandle, id: &str) {
+    match id {
+        "summon" => { let _ = app.emit("summon-pet", ()); }
+        "feed" => { let _ = app.emit("tray-action", "feed"); }
+        "reminder" => { let _ = app.emit("tray-action", "reminder"); }
+        "pomodoro" => { let _ = app.emit("tray-action", "pomodoro"); }
+        "snack" => { let _ = app.emit("tray-action", "enter-feeding"); }
+        _ => {}
+    }
+}
+
+/// Default accelerator for each id. Used on first run and by the
+/// "reset to default" button in the About panel.
+fn default_accel(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "summon" => "Ctrl+Shift+P",
+        "feed" => "Ctrl+Shift+F",
+        "reminder" => "Ctrl+Shift+N",
+        "pomodoro" => "Ctrl+Shift+T",
+        "snack" => "Ctrl+Shift+E",
+        _ => return None,
+    })
+}
+
+/// Register a shortcut with the global_shortcut plugin, wiring its
+/// Pressed event to emit_for_id. Errors propagate to the caller so
+/// rebind_shortcut can roll back on failure.
+fn register_shortcut(
+    app: &tauri::AppHandle,
+    id: &str,
+    accel: &str,
+) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let id_owned = id.to_string();
+    let app_clone = app.clone();
+    app.global_shortcut()
+        .on_shortcut(accel, move |_app, _shortcut, event| {
+            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                emit_for_id(&app_clone, &id_owned);
+            }
+        })
+        .map_err(|e| format!("register '{}' -> '{}' failed: {}", id, accel, e))
+}
+
+/// Unregister a specific accelerator. Ignores errors — the caller
+/// always wants to re-register something else next, and the plugin is
+/// forgiving about unknown accelerators.
+fn unregister_accel(app: &tauri::AppHandle, accel: &str) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let _ = app.global_shortcut().unregister(accel);
+}
+
+/// Rebind shortcut `id` from its current accelerator (as tracked in
+/// the ShortcutBindings state) to `new_accel`. Registers the new
+/// binding first; on failure, re-registers the old one so we never
+/// silently lose a shortcut.
+#[tauri::command]
+fn rebind_shortcut(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ShortcutBindings>,
+    id: String,
+    new_accel: String,
+) -> Result<(), String> {
+    let old_accel_opt = {
+        let map = state.0.lock().map_err(|e| format!("lock: {}", e))?;
+        map.get(&id).cloned()
+    };
+    let old_accel = match old_accel_opt {
+        Some(v) => v,
+        None => return Err(format!("unknown shortcut id: {}", id)),
+    };
+
+    if old_accel == new_accel {
+        return Ok(());
+    }
+
+    unregister_accel(&app, &old_accel);
+    match register_shortcut(&app, &id, &new_accel) {
+        Ok(()) => {
+            let mut map = state.0.lock().map_err(|e| format!("lock: {}", e))?;
+            map.insert(id, new_accel);
+            Ok(())
+        }
+        Err(e) => {
+            // Roll back: put the old binding back so the user doesn't
+            // end up with a missing shortcut.
+            let _ = register_shortcut(&app, &id, &old_accel);
+            Err(e)
+        }
+    }
+}
 
 #[tauri::command]
 fn get_active_window() -> Option<ActiveWindowInfo> {
@@ -188,52 +291,21 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file, append_debug_log, quit_app])
+        .invoke_handler(tauri::generate_handler![get_active_window, get_idle_time, move_foreground_window, capture_foreground_hwnd, capture_foreground_hwnd_debug, get_captured_hwnd, move_captured_window, send_space_to_window, get_cursor_position, set_window_bounds, show_context_menu, set_hwnd_position, get_hwnd_rect, create_reminder_notepad, write_reminder_file, append_debug_log, quit_app, rebind_shortcut])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
 
-            // Register global shortcuts
-            use tauri_plugin_global_shortcut::GlobalShortcutExt;
-
-            // Ctrl+Shift+P — Summon pet
-            let handle = app.handle().clone();
-            app.global_shortcut().on_shortcut("Ctrl+Shift+P", move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    let _ = handle.emit("summon-pet", ());
-                }
-            })?;
-
-            // Ctrl+Shift+F — Feed
-            let handle2 = app.handle().clone();
-            app.global_shortcut().on_shortcut("Ctrl+Shift+F", move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    let _ = handle2.emit("tray-action", "feed");
-                }
-            })?;
-
-            // Ctrl+Shift+N — Reminder
-            let handle3 = app.handle().clone();
-            app.global_shortcut().on_shortcut("Ctrl+Shift+N", move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    let _ = handle3.emit("tray-action", "reminder");
-                }
-            })?;
-
-            // Ctrl+Shift+T — Pomodoro
-            let handle4 = app.handle().clone();
-            app.global_shortcut().on_shortcut("Ctrl+Shift+T", move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    let _ = handle4.emit("tray-action", "pomodoro");
-                }
-            })?;
-
-            // Ctrl+Shift+E — Enter feeding mode (drop a snack)
-            let handle5 = app.handle().clone();
-            app.global_shortcut().on_shortcut("Ctrl+Shift+E", move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    let _ = handle5.emit("tray-action", "enter-feeding");
-                }
-            })?;
+            // Register default global shortcuts. The id -> accel map
+            // is stashed in app state so the rebind_shortcut command
+            // can unregister/re-register atomically later.
+            let mut bindings: HashMap<String, String> = HashMap::new();
+            for id in ["summon", "feed", "reminder", "pomodoro", "snack"] {
+                let accel = default_accel(id).unwrap();
+                register_shortcut(&app.handle(), id, accel)
+                    .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
+                bindings.insert(id.to_string(), accel.to_string());
+            }
+            app.manage(ShortcutBindings(Mutex::new(bindings)));
 
             // Handle context menu item clicks
             let menu_handle = app.handle().clone();

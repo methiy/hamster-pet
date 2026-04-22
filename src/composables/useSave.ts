@@ -16,6 +16,11 @@ export interface SettingsData {
   activityPushEnabled?: boolean
   /** Activity check interval in seconds (default 15) */
   activityCheckInterval?: number
+  /** User-customized global shortcut accelerators, by logical id.
+   * Example: { summon: 'Ctrl+Shift+P', feed: 'Ctrl+Alt+F' }. Missing
+   * ids fall back to the Rust-side defaults. Applied at app startup
+   * via the rebind_shortcut command. */
+  shortcuts?: Record<string, string>
 }
 
 interface SaveData {

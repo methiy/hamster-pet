@@ -39,6 +39,8 @@
         @update:activity-reaction-enabled="emitAction('updateActivityReactionEnabled', $event)"
         @update:activity-push-enabled="emitAction('updateActivityPushEnabled', $event)"
         @update:activity-check-interval="emitAction('updateActivityCheckInterval', $event)"
+        @rebind-shortcut="emitAction('rebindShortcut', $event)"
+        @reset-shortcut="emitAction('resetShortcut', $event)"
       />
     </div>
     <div v-else class="panel-loading">

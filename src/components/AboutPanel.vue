@@ -43,14 +43,33 @@
 
     <div class="shortcuts-section">
       <h3 class="shortcuts-title">⌨️ 快捷键</h3>
+      <div class="shortcuts-hint">点击快捷键后按下新组合，点击别处即完成录入；按 Esc 取消</div>
       <div
-        v-for="sc in shortcuts"
+        v-for="sc in shortcutRows"
         :key="sc.id"
         class="shortcut-row"
       >
         <span class="shortcut-label">{{ sc.label }}</span>
-        <kbd class="shortcut-key">{{ sc.key }}</kbd>
+        <kbd
+          class="shortcut-key"
+          :class="{
+            recording: listeningId === sc.id,
+            conflict: listeningId === sc.id && recordingConflict,
+          }"
+          @click.stop="startRecording(sc.id)"
+        >{{
+          listeningId === sc.id
+            ? (recordingPreview || '请按下新快捷键...')
+            : sc.key
+        }}</kbd>
+        <button
+          class="reset-btn"
+          :title="`恢复默认：${defaultShortcuts[sc.id] ?? ''}`"
+          :disabled="!isOverridden(sc.id)"
+          @click.stop="emit('reset-shortcut', sc.id)"
+        >↺</button>
       </div>
+      <div v-if="errorMessage" class="shortcut-error">{{ errorMessage }}</div>
     </div>
 
     <div class="about-footer">
@@ -60,29 +79,226 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 import type { Update } from '@tauri-apps/plugin-updater'
 
 declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__
 
 /**
- * Source of truth for the keyboard-shortcut list shown in the About
- * panel. The ids match the Rust-side global_shortcut registrations in
- * src-tauri/src/lib.rs; updating one without the other will drift the
- * UI from reality.
- *
- * When the "custom shortcut rebinding" feature ships, this array will
- * be replaced by a reactive read from settings.shortcuts, but the
- * shape (id/label/key) stays the same.
+ * Props fed from App.vue via syncState:
+ *   - shortcuts: current effective map { id -> accel }
+ *   - defaultShortcuts: the built-in defaults, used by the reset button
+ *     and to determine whether an entry is "overridden"
  */
-const shortcuts = ref<Array<{ id: string; label: string; key: string }>>([
-  { id: 'summon',   label: '📍 召唤宠物', key: 'Ctrl+Shift+P' },
-  { id: 'feed',     label: '🍽️ 喂食',     key: 'Ctrl+Shift+F' },
-  { id: 'reminder', label: '📝 备忘',     key: 'Ctrl+Shift+N' },
-  { id: 'pomodoro', label: '🍅 番茄钟',   key: 'Ctrl+Shift+T' },
-  { id: 'snack',    label: '🍿 丢零食',   key: 'Ctrl+Shift+E' },
-])
+const props = defineProps<{
+  shortcuts?: Record<string, string>
+  defaultShortcuts?: Record<string, string>
+}>()
+
+const emit = defineEmits<{
+  (e: 'rebind-shortcut', payload: { id: string; key: string }): void
+  (e: 'reset-shortcut', id: string): void
+}>()
+
+/** Human-readable labels for each logical shortcut id. Kept here
+ * because the id is what the Rust side and App.vue speak; the label
+ * is a UI concern. */
+const SHORTCUT_LABELS: Record<string, string> = {
+  summon:   '📍 召唤宠物',
+  feed:     '🍽️ 喂食',
+  reminder: '📝 备忘',
+  pomodoro: '🍅 番茄钟',
+  snack:    '🍿 丢零食',
+}
+
+const effectiveShortcuts = computed<Record<string, string>>(
+  () => props.shortcuts ?? {},
+)
+const defaultShortcuts = computed<Record<string, string>>(
+  () => props.defaultShortcuts ?? {},
+)
+
+/** Ordered rows for the template, driven by whatever keys are in
+ * defaultShortcuts (stable across rebinds). */
+const shortcutRows = computed(() =>
+  Object.keys(defaultShortcuts.value).map((id) => ({
+    id,
+    label: SHORTCUT_LABELS[id] ?? id,
+    key: effectiveShortcuts.value[id] ?? defaultShortcuts.value[id] ?? '',
+  })),
+)
+
+function isOverridden(id: string): boolean {
+  return (
+    effectiveShortcuts.value[id] !== undefined &&
+    effectiveShortcuts.value[id] !== defaultShortcuts.value[id]
+  )
+}
+
+// --- Recording state ---
+const listeningId = ref<string | null>(null)
+const recordingPreview = ref<string>('')
+const recordingConflict = ref(false)
+const errorMessage = ref<string>('')
+let unlistenRebindError: (() => void) | null = null
+
+function startRecording(id: string) {
+  if (listeningId.value === id) return
+  listeningId.value = id
+  recordingPreview.value = ''
+  recordingConflict.value = false
+  errorMessage.value = ''
+}
+
+/** Turn a KeyboardEvent into a Tauri-style accelerator string. We
+ * match the format Tauri's global_shortcut parses: modifiers joined
+ * by `+` with "Ctrl", "Shift", "Alt", "Meta", then the main key.
+ *
+ * Returns null while the user hasn't pressed a non-modifier yet.
+ */
+function eventToAccel(e: KeyboardEvent): string | null {
+  const mods: string[] = []
+  if (e.ctrlKey) mods.push('Ctrl')
+  if (e.shiftKey) mods.push('Shift')
+  if (e.altKey) mods.push('Alt')
+  if (e.metaKey) mods.push('Meta')
+  // Ignore bare modifier presses — we only commit once the user hits
+  // a real key like P or F3.
+  const k = e.key
+  if (!k || k === 'Control' || k === 'Shift' || k === 'Alt' || k === 'Meta') {
+    return mods.length > 0 ? mods.join('+') + '+' : null
+  }
+  let main: string
+  if (k.length === 1) {
+    main = k.toUpperCase()
+  } else if (/^F\d{1,2}$/.test(k)) {
+    main = k
+  } else if (k === 'Escape') {
+    // Handled separately as "cancel"
+    return null
+  } else {
+    // Other named keys (Enter, Tab, Home, ...). Use Tauri accepts most
+    // of them verbatim; title-case for consistency.
+    main = k.charAt(0).toUpperCase() + k.slice(1)
+  }
+  return [...mods, main].join('+')
+}
+
+function isValidAccel(accel: string): boolean {
+  // Must have at least one modifier and one non-modifier, i.e. at
+  // least 2 parts joined by "+".
+  const parts = accel.split('+')
+  if (parts.length < 2) return false
+  const last = parts[parts.length - 1]!
+  if (['Ctrl', 'Shift', 'Alt', 'Meta', ''].includes(last)) return false
+  // Need at least one modifier. (parts.length >= 2 + last is not a mod
+  // means parts[0..length-1] has at least one modifier already.)
+  return true
+}
+
+function findConflict(accel: string, excludeId: string): string | null {
+  for (const [otherId, otherAccel] of Object.entries(effectiveShortcuts.value)) {
+    if (otherId === excludeId) continue
+    if (otherAccel === accel) return otherId
+  }
+  return null
+}
+
+function onKeyDown(e: KeyboardEvent) {
+  if (!listeningId.value) return
+  // Always consume keys while recording so, e.g., Ctrl+Shift+T doesn't
+  // simultaneously fire the existing pomodoro shortcut (web-layer only;
+  // the OS-level global_shortcut is separate and will still fire).
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (e.key === 'Escape') {
+    cancelRecording()
+    return
+  }
+
+  const accel = eventToAccel(e)
+  if (!accel) return
+  recordingPreview.value = accel
+
+  // Live-feedback conflict warning (no commit yet).
+  if (isValidAccel(accel)) {
+    recordingConflict.value = findConflict(accel, listeningId.value) !== null
+  } else {
+    recordingConflict.value = false
+  }
+}
+
+function cancelRecording() {
+  listeningId.value = null
+  recordingPreview.value = ''
+  recordingConflict.value = false
+}
+
+function commitRecording() {
+  const id = listeningId.value
+  if (!id) return
+  const accel = recordingPreview.value
+  if (!accel) {
+    // Nothing captured yet — treat as cancel.
+    cancelRecording()
+    return
+  }
+  if (!isValidAccel(accel)) {
+    errorMessage.value = `"${accel}" 不是有效快捷键（至少需要一个修饰键加一个主键）`
+    cancelRecording()
+    return
+  }
+  const conflict = findConflict(accel, id)
+  if (conflict) {
+    const conflictLabel = SHORTCUT_LABELS[conflict] ?? conflict
+    errorMessage.value = `"${accel}" 已被 ${conflictLabel} 使用，请换一个`
+    cancelRecording()
+    return
+  }
+  if (effectiveShortcuts.value[id] === accel) {
+    // No-op commit.
+    cancelRecording()
+    return
+  }
+  emit('rebind-shortcut', { id, key: accel })
+  cancelRecording()
+}
+
+/** Click anywhere outside the currently-recording <kbd> = commit. */
+function onDocumentMouseDown(e: MouseEvent) {
+  if (!listeningId.value) return
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  // If the click was on the same <kbd> (or its child), keep recording.
+  const kbd = target.closest('.shortcut-key')
+  if (kbd && kbd.classList.contains('recording')) return
+  // Clicking the reset button or another shortcut row also commits the
+  // current recording first, which is what the user expects.
+  commitRecording()
+}
+
+onMounted(async () => {
+  window.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('mousedown', onDocumentMouseDown, true)
+  try {
+    unlistenRebindError = await listen<{ id: string; attempted: string; error: string }>(
+      'shortcut-rebind-error',
+      (event) => {
+        const label = SHORTCUT_LABELS[event.payload.id] ?? event.payload.id
+        errorMessage.value = `${label} 绑定到 "${event.payload.attempted}" 失败：${event.payload.error}`
+      },
+    )
+  } catch { /* ignore */ }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown, true)
+  window.removeEventListener('mousedown', onDocumentMouseDown, true)
+  unlistenRebindError?.()
+})
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'update-available' | 'downloading' | 'installing' | 'error'
 const updateStatus = ref<UpdateStatus>('idle')
@@ -417,6 +633,70 @@ async function openGitHub() {
   font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
   color: #5C4033;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 110px;
+  text-align: center;
+}
+.shortcut-key:hover {
+  background: rgba(242, 166, 90, 0.1);
+  border-color: rgba(242, 166, 90, 0.4);
+}
+.shortcut-key.recording {
+  background: #FFF7E6;
+  border-color: #F2A65A;
+  box-shadow: 0 0 0 2px rgba(242, 166, 90, 0.25);
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+.shortcut-key.recording.conflict {
+  background: #FFEFEF;
+  border-color: #E57373;
+  box-shadow: 0 0 0 2px rgba(229, 115, 115, 0.25);
+}
+@keyframes recording-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(242, 166, 90, 0.25); }
+  50%      { box-shadow: 0 0 0 4px rgba(242, 166, 90, 0.4); }
+}
+
+.shortcuts-hint {
+  font-size: 11px;
+  color: #A08060;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.reset-btn {
+  border: 1px solid rgba(92, 64, 51, 0.15);
+  background: white;
+  color: #5C4033;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  margin-left: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s, opacity 0.15s;
+}
+.reset-btn:hover:not(:disabled) {
+  background: rgba(242, 166, 90, 0.1);
+}
+.reset-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.shortcut-error {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(229, 115, 115, 0.1);
+  border: 1px solid rgba(229, 115, 115, 0.3);
+  border-radius: 6px;
+  color: #C62828;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .about-footer {

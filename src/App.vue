@@ -322,6 +322,24 @@ const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReac
 // --- Panel window ---
 const { preloadPanel, openPanel, syncState, setupActionListener, destroyActionListener, currentOpenPanel } = usePanelWindow()
 
+// Default global-shortcut accelerators, by logical id. These must stay
+// in sync with the Rust-side default_accel() in src-tauri/src/lib.rs
+// and the labels in components/AboutPanel.vue. User-customized values
+// live in settings.shortcuts.
+const DEFAULT_SHORTCUTS: Record<string, string> = {
+  summon:   'Ctrl+Shift+P',
+  feed:     'Ctrl+Shift+F',
+  reminder: 'Ctrl+Shift+N',
+  pomodoro: 'Ctrl+Shift+T',
+  snack:    'Ctrl+Shift+E',
+}
+
+/** The currently-active shortcut map (custom overrides on top of defaults). */
+function getEffectiveShortcuts(): Record<string, string> {
+  const custom = settings.value.shortcuts ?? {}
+  return { ...DEFAULT_SHORTCUTS, ...custom }
+}
+
 function getPanelData(panel: string): Record<string, any> {
   switch (panel) {
     case 'shop':
@@ -367,7 +385,10 @@ function getPanelData(panel: string): Record<string, any> {
         activityCheckInterval: settings.value.activityCheckInterval ?? 15,
       }
     case 'about':
-      return {}
+      return {
+        shortcuts: getEffectiveShortcuts(),
+        defaultShortcuts: DEFAULT_SHORTCUTS,
+      }
     default:
       return {}
   }
@@ -394,11 +415,69 @@ function handlePanelAction(action: string, payload?: any) {
     case 'updateActivityReactionEnabled': settings.value = { ...settings.value, activityReactionEnabled: payload }; break
     case 'updateActivityPushEnabled': settings.value = { ...settings.value, activityPushEnabled: payload }; break
     case 'updateActivityCheckInterval': settings.value = { ...settings.value, activityCheckInterval: payload }; break
+    case 'rebindShortcut': onRebindShortcut(payload.id, payload.key); break
+    case 'resetShortcut': onResetShortcut(payload); break
   }
 
   // Sync updated state back to panel after action
   if (currentOpenPanel.value) {
     syncState(getPanelData(currentOpenPanel.value))
+  }
+}
+
+/**
+ * Rebind a global shortcut by id. On success, persists the new
+ * binding to settings.shortcuts and re-syncs the panel. On failure
+ * (conflict, invalid accelerator, OS-level registration failed), the
+ * Rust side has already rolled back to the previous binding; we just
+ * forward the error message to the panel so it can surface it to the
+ * user.
+ */
+async function onRebindShortcut(id: string, newKey: string) {
+  const currentMap = getEffectiveShortcuts()
+  const oldKey = currentMap[id]
+  if (!oldKey || oldKey === newKey) return
+
+  try {
+    await invoke('rebind_shortcut', { id, newAccel: newKey })
+    settings.value = {
+      ...settings.value,
+      shortcuts: { ...(settings.value.shortcuts ?? {}), [id]: newKey },
+    }
+    save()
+    syncState(getPanelData('about'))
+  } catch (err) {
+    // Let the panel know so it can show a toast. We pass the error
+    // string through in a dedicated event; the panel listens for it
+    // in its own code.
+    tauriEmit('shortcut-rebind-error', { id, attempted: newKey, error: String(err) }).catch(() => {})
+    syncState(getPanelData('about'))
+  }
+}
+
+async function onResetShortcut(id: string) {
+  const def = DEFAULT_SHORTCUTS[id]
+  if (!def) return
+  const current = getEffectiveShortcuts()[id]
+  if (current === def) {
+    // Already at default — just clear the custom override entry.
+    const next = { ...(settings.value.shortcuts ?? {}) }
+    delete next[id]
+    settings.value = { ...settings.value, shortcuts: next }
+    save()
+    syncState(getPanelData('about'))
+    return
+  }
+  try {
+    await invoke('rebind_shortcut', { id, newAccel: def })
+    const next = { ...(settings.value.shortcuts ?? {}) }
+    delete next[id]
+    settings.value = { ...settings.value, shortcuts: next }
+    save()
+    syncState(getPanelData('about'))
+  } catch (err) {
+    tauriEmit('shortcut-rebind-error', { id, attempted: def, error: String(err) }).catch(() => {})
+    syncState(getPanelData('about'))
   }
 }
 
@@ -943,6 +1022,19 @@ onMounted(async () => {
     const actual = await isEnabled()
     settings.value = { ...settings.value, autoStart: actual }
   } catch { /* Not in Tauri or plugin not available */ }
+
+  // Apply any user-customized global shortcuts. Rust registered the
+  // defaults during setup; here we rebind the ones the user changed
+  // (persisted in settings.shortcuts). Failures are silent — the user
+  // can re-bind from the About panel if something's off.
+  const customShortcuts = settings.value.shortcuts ?? {}
+  for (const [id, key] of Object.entries(customShortcuts)) {
+    if (DEFAULT_SHORTCUTS[id] && key !== DEFAULT_SHORTCUTS[id]) {
+      try {
+        await invoke('rebind_shortcut', { id, newAccel: key })
+      } catch { /* ignore; default stays active */ }
+    }
+  }
 
   if (offlineCoins > 0) {
     showToast({ type: 'info', icon: 'ℹ️', title: `离开了 ${offlineMinutes} 分钟`, message: `获得 ${offlineCoins} 金币` })
