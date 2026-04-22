@@ -110,8 +110,8 @@
             <div class="custom-interval-wrap">
               <input
                 type="number"
-                min="5"
-                max="300"
+                min="1"
+                max="120"
                 :value="isCustomInterval ? customIntervalInput : ''"
                 :placeholder="isCustomInterval ? '' : '自定义'"
                 class="custom-interval-input"
@@ -120,7 +120,7 @@
                 @change="onCustomIntervalChange"
                 @input="customIntervalInput = ($event.target as HTMLInputElement).value"
               />
-              <span class="custom-interval-unit">秒</span>
+              <span class="custom-interval-unit">分钟</span>
             </div>
           </div>
         </div>
@@ -164,10 +164,10 @@ const sizeOptions = [
 ]
 
 const intervalOptions = [
-  { value: 10, label: '10秒' },
-  { value: 15, label: '15秒' },
-  { value: 30, label: '30秒' },
-  { value: 60, label: '1分钟' },
+  { value: 1,  label: '1分钟' },
+  { value: 5,  label: '5分钟' },
+  { value: 10, label: '10分钟' },
+  { value: 30, label: '30分钟' },
 ]
 
 const isCustomInterval = computed(() =>
@@ -184,7 +184,7 @@ watch(() => props.activityCheckInterval, (val) => {
 
 function onCustomIntervalChange() {
   const v = parseInt(customIntervalInput.value)
-  if (!isNaN(v) && v >= 5 && v <= 300) {
+  if (!isNaN(v) && v >= 1 && v <= 120) {
     emit('update:activityCheckInterval', v)
   }
 }

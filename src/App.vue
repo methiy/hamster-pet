@@ -293,7 +293,7 @@ const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
 // --- Activity reaction settings (derived from settings ref) ---
 const activityReactionEnabled = computed(() => settings.value.activityReactionEnabled ?? true)
 const activityPushEnabled = computed(() => settings.value.activityPushEnabled ?? true)
-const activityCheckInterval = computed(() => settings.value.activityCheckInterval ?? 15)
+const activityCheckInterval = computed(() => settings.value.activityCheckInterval ?? 1)
 
 const { resetReacting, startPeriodicCheck, stopPeriodicCheck } = useActivityReaction(
   currentActivity,
@@ -382,7 +382,7 @@ function getPanelData(panel: string): Record<string, any> {
         autoStart: settings.value.autoStart ?? false,
         activityReactionEnabled: settings.value.activityReactionEnabled ?? true,
         activityPushEnabled: settings.value.activityPushEnabled ?? true,
-        activityCheckInterval: settings.value.activityCheckInterval ?? 15,
+        activityCheckInterval: settings.value.activityCheckInterval ?? 1,
       }
     case 'about':
       return {

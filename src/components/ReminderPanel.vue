@@ -40,16 +40,12 @@
 
           <!-- Interval mode -->
           <div v-else class="interval-form">
-            <div class="time-row">
-              <label class="time-label">
-                开始
-                <input v-model="newStartTime" type="time" class="time-input" />
-              </label>
-              <label class="time-label">
-                结束
-                <input v-model="newEndTime" type="time" class="time-input" />
-              </label>
-            </div>
+            <TimeRangePicker
+              :start-time="newStartTime"
+              :end-time="newEndTime"
+              @update:start-time="newStartTime = $event"
+              @update:end-time="newEndTime = $event"
+            />
 
             <div class="interval-row">
               <span class="interval-label">间隔:</span>
@@ -132,6 +128,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Reminder } from '../composables/useReminder'
+import TimeRangePicker from './TimeRangePicker.vue'
 
 const props = defineProps<{
   reminders: Reminder[]

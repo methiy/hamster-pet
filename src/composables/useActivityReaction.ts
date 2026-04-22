@@ -133,7 +133,11 @@ export function useActivityReaction(
 
   function restartCheckTimer() {
     if (checkTimer) clearInterval(checkTimer)
-    const intervalMs = reactionSettings.checkInterval.value * 1000
+    // checkInterval is in minutes (since v0.7.38). Older installs that
+    // had this value as seconds (10, 15, 30, 60) will now interpret
+    // their stored value as minutes — intentional per the C migration
+    // choice; users can re-pick a sensible value in Settings.
+    const intervalMs = reactionSettings.checkInterval.value * 60_000
     checkTimer = setInterval(() => {
       tryReact(currentActivity.value)
     }, intervalMs)

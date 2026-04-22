@@ -614,14 +614,20 @@ async function openGitHub() {
 }
 
 .shortcut-row {
-  display: flex;
+  display: grid;
+  /* Fixed label column + flexible key column + fixed reset button column.
+     The label column is wide enough for the longest current label
+     ("📍 召唤宠物") at the current font size, so every <kbd> starts at
+     the same x coordinate regardless of label length. */
+  grid-template-columns: 96px 1fr 24px;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 5px 0;
 }
 
 .shortcut-label {
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .shortcut-key {
@@ -638,6 +644,7 @@ async function openGitHub() {
   transition: background 0.15s, border-color 0.15s;
   min-width: 110px;
   text-align: center;
+  justify-self: end;
 }
 .shortcut-key:hover {
   background: rgba(242, 166, 90, 0.1);
@@ -673,7 +680,6 @@ async function openGitHub() {
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  margin-left: 6px;
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
