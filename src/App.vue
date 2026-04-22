@@ -1058,10 +1058,12 @@ onMounted(async () => {
           const targetX = cursor.x - offsetX
           const targetY = cursor.y - offsetY
 
-          // Walk to cursor position with animation
+          // Walk to cursor position with animation. Summon is a
+          // user-initiated "come here NOW" gesture, so use a high
+          // speed multiplier — the default 1x felt sluggish.
           speechText.value = pickRandom(SUMMON_PHRASES)
           speechVisible.value = true
-          await startSummonWalk(targetX, targetY)
+          await startSummonWalk(targetX, targetY, { speedMultiplier: 3 })
           triggerReaction('happy', 2000)
         } else {
           triggerReaction('happy', 2000)
