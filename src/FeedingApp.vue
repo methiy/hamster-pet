@@ -182,12 +182,29 @@ onMounted(async () => {
     setTimeout(() => fadeOutAndRemove(s.id), 3000)
   })
 
+  // Esc cancels the mode while we're still waiting for a click. After a
+  // snack has already been dropped we let the fall+fade finish normally
+  // — there's nothing to cancel at that point and pressing Esc in
+  // another app shouldn't accidentally yank the snack away.
+  window.addEventListener('keydown', onKey)
+
   ensureLoop()
 })
+
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (!waitingClick.value) return
+  // Cancel: hide the overlay and reset for the next enter.
+  try {
+    getCurrentWindow().hide()
+  } catch { /* ignore */ }
+  waitingClick.value = true
+}
 
 onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId)
   unlistenSnackEaten?.()
+  window.removeEventListener('keydown', onKey)
 })
 </script>
 

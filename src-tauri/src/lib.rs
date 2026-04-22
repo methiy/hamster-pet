@@ -161,6 +161,7 @@ fn show_context_menu(window: tauri::Window) {
     let app = window.app_handle();
     let menu = MenuBuilder::new(app)
         .item(&MenuItemBuilder::with_id("ctx_feed", "🍽️ 喂食").build(app).unwrap())
+        .item(&MenuItemBuilder::with_id("ctx_snack", "🍿 丢零食").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_shop", "🏪 商店").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_postcard", "📮 明信片").build(app).unwrap())
         .item(&MenuItemBuilder::with_id("ctx_souvenir", "🎁 纪念品").build(app).unwrap())
@@ -240,6 +241,7 @@ pub fn run() {
                 let id = event.id().as_ref();
                 match id {
                     "ctx_feed" => { let _ = menu_handle.emit("tray-action", "feed"); }
+                    "ctx_snack" => { let _ = menu_handle.emit("tray-action", "enter-feeding"); }
                     "ctx_shop" => { let _ = menu_handle.emit("tray-action", "shop"); }
                     "ctx_postcard" => { let _ = menu_handle.emit("tray-action", "postcard"); }
                     "ctx_souvenir" => { let _ = menu_handle.emit("tray-action", "souvenir"); }

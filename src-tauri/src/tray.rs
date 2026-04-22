@@ -8,6 +8,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let summon = MenuItemBuilder::with_id("summon", "📍 召唤宠物  Ctrl+Shift+P").build(app)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let feed = MenuItemBuilder::with_id("feed", "🍽️ 喂食  Ctrl+Shift+F").build(app)?;
+    let snack = MenuItemBuilder::with_id("snack", "🍿 丢零食  Ctrl+Shift+E").build(app)?;
     let shop = MenuItemBuilder::with_id("shop", "🏪 商店").build(app)?;
     let reminder = MenuItemBuilder::with_id("reminder", "📝 备忘  Ctrl+Shift+N").build(app)?;
     let status = MenuItemBuilder::with_id("status", "📊 状态").build(app)?;
@@ -22,6 +23,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .item(&summon)
         .item(&sep1)
         .item(&feed)
+        .item(&snack)
         .item(&shop)
         .item(&reminder)
         .item(&status)
@@ -60,6 +62,12 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 }
                 "feed" => {
                     let _ = app.emit("tray-action", "feed");
+                }
+                "snack" => {
+                    // Same payload the Ctrl+Shift+E hotkey emits — App.vue's
+                    // tray-action listener dispatches this to the feeding
+                    // overlay.
+                    let _ = app.emit("tray-action", "enter-feeding");
                 }
                 "shop" => {
                     let _ = app.emit("tray-action", "shop");
