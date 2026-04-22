@@ -91,6 +91,7 @@ import { useMouseShakeDetector } from './composables/useMouseShakeDetector'
 import { useChaseCursor } from './composables/useChaseCursor'
 import { useWindowShake } from './composables/useWindowShake'
 import { useAlertUser } from './composables/useAlertUser'
+import { useFeedingOverlay } from './composables/useFeedingOverlay'
 import type { BodyRegion } from './data/hamsterPhrases'
 import type { ActivityType } from './data/activityPhrases'
 import { SUMMON_PHRASES } from './data/activityPhrases'
@@ -278,6 +279,8 @@ const { alertUserWithPet } = useAlertUser({
     return [pos.x, pos.y]
   },
 })
+
+const feeding = useFeedingOverlay()
 
 const { onMouseMove: onShakeMouseMove } = useMouseShakeDetector(() => {
   // Don't start chase while other animations are active
@@ -821,6 +824,7 @@ let unlistenSummon: (() => void) | null = null
 let unlistenTrayAction: (() => void) | null = null
 let unlistenRequestData: (() => void) | null = null
 let unlistenMoved: (() => void) | null = null
+let unlistenSnackDropped: (() => void) | null = null
 
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
@@ -1046,6 +1050,12 @@ onMounted(async () => {
         case 'toggle-passthrough':
           onTogglePassThrough(!(settings.value.passThrough ?? false))
           break
+        case 'enter-feeding':
+          // Ctrl+Shift+E was pressed — pop up the full-screen snack
+          // overlay. The overlay captures exactly one mouse click, spawns
+          // a falling snack there, and emits 'snack-dropped' back to us.
+          feeding.enter()
+          break
         case 'quit':
           save()
           // Fully exit so the tray icon goes away too. A plain
@@ -1060,6 +1070,51 @@ onMounted(async () => {
           }
           break
       }
+    })
+  } catch { /* Not in Tauri */ }
+
+  // Listen for a snack being dropped by the feeding overlay. We decide
+  // whether the pet is "hungry enough" to walk over: Q2=a means we
+  // simply gate on today's feed count (`feedsToday < 3`).
+  try {
+    unlistenSnackDropped = await feeding.onSnackDropped(async (ev) => {
+      const feedsToday = status.value.feedsToday ?? 0
+      if (feedsToday >= 3) {
+        // Not hungry — leave the snack on the ground; the overlay will
+        // fade it out on its own timer. A tiny speech reaction helps
+        // the user understand why nothing's happening.
+        showSpeechText('现在还不饿，谢谢主人~')
+        return
+      }
+
+      // Remember where the pet was, so we can walk back home after
+      // eating. This mirrors the reminder-alert return-home flow.
+      let home: [number, number] | null = null
+      try {
+        const pos = await getCurrentWindow().outerPosition()
+        home = [pos.x, pos.y]
+      } catch { /* ignore */ }
+
+      // Walk to the snack. `ev.physX` / `ev.physY` are already monitor-
+      // physical coordinates (the overlay multiplied by devicePixelRatio).
+      try {
+        await startSummonWalk(ev.physX, ev.physY, { speedMultiplier: 2 })
+      } catch { /* ignore — walk may be interrupted */ }
+
+      // Pet has arrived — switch to eating state and notify the
+      // overlay so it can fade the snack away.
+      feedHamster()
+      recordFeed()
+      tauriEmit('snack-eaten', { id: ev.id }).catch(() => {})
+
+      // After the eating state has had a moment, walk back home.
+      // Eating state in useHamster is 3-6s — we wait ~3.5s to be safe.
+      setTimeout(async () => {
+        if (!home) return
+        try {
+          await startSummonWalk(home[0], home[1], { speedMultiplier: 2 })
+        } catch { /* ignore */ }
+      }, 3500)
     })
   } catch { /* Not in Tauri */ }
 })
@@ -1083,6 +1138,7 @@ onUnmounted(() => {
   if (unlistenTrayAction) unlistenTrayAction()
   if (unlistenRequestData) unlistenRequestData()
   if (unlistenMoved) unlistenMoved()
+  if (unlistenSnackDropped) unlistenSnackDropped()
 })
 </script>
 

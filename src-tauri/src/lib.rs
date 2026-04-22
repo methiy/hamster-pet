@@ -226,6 +226,14 @@ pub fn run() {
                 }
             })?;
 
+            // Ctrl+Shift+E — Enter feeding mode (drop a snack)
+            let handle5 = app.handle().clone();
+            app.global_shortcut().on_shortcut("Ctrl+Shift+E", move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    let _ = handle5.emit("tray-action", "enter-feeding");
+                }
+            })?;
+
             // Handle context menu item clicks
             let menu_handle = app.handle().clone();
             app.on_menu_event(move |_app, event| {

@@ -22,6 +22,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         panel: resolve(__dirname, 'panel.html'),
         reminder: resolve(__dirname, 'reminder.html'),
+        feeding: resolve(__dirname, 'feeding.html'),
       }
     }
   }
