@@ -33,8 +33,17 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .item(&quit)
         .build()?;
 
-    let icon = app.default_window_icon().cloned()
-        .expect("No default window icon found");
+    // Use a dedicated tray icon (embedded at compile time) so it can be
+    // visually distinct from the app/window icon. If loading fails for any
+    // reason, fall back to the default window icon rather than failing to
+    // start the tray entirely.
+    let icon = match tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")) {
+        Ok(img) => img,
+        Err(_) => app
+            .default_window_icon()
+            .cloned()
+            .expect("No default window icon found"),
+    };
 
     // Keep a clone of the CheckMenuItem so we can sync state from frontend
     let passthrough_item = passthrough.clone();
