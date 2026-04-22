@@ -43,21 +43,13 @@
 
     <div class="shortcuts-section">
       <h3 class="shortcuts-title">⌨️ 快捷键</h3>
-      <div class="shortcut-row">
-        <span class="shortcut-label">📍 召唤宠物</span>
-        <kbd class="shortcut-key">Ctrl+Shift+P</kbd>
-      </div>
-      <div class="shortcut-row">
-        <span class="shortcut-label">🍽️ 喂食</span>
-        <kbd class="shortcut-key">Ctrl+Shift+F</kbd>
-      </div>
-      <div class="shortcut-row">
-        <span class="shortcut-label">📝 备忘</span>
-        <kbd class="shortcut-key">Ctrl+Shift+N</kbd>
-      </div>
-      <div class="shortcut-row">
-        <span class="shortcut-label">🍅 番茄钟</span>
-        <kbd class="shortcut-key">Ctrl+Shift+T</kbd>
+      <div
+        v-for="sc in shortcuts"
+        :key="sc.id"
+        class="shortcut-row"
+      >
+        <span class="shortcut-label">{{ sc.label }}</span>
+        <kbd class="shortcut-key">{{ sc.key }}</kbd>
       </div>
     </div>
 
@@ -73,6 +65,24 @@ import type { Update } from '@tauri-apps/plugin-updater'
 
 declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__
+
+/**
+ * Source of truth for the keyboard-shortcut list shown in the About
+ * panel. The ids match the Rust-side global_shortcut registrations in
+ * src-tauri/src/lib.rs; updating one without the other will drift the
+ * UI from reality.
+ *
+ * When the "custom shortcut rebinding" feature ships, this array will
+ * be replaced by a reactive read from settings.shortcuts, but the
+ * shape (id/label/key) stays the same.
+ */
+const shortcuts = ref<Array<{ id: string; label: string; key: string }>>([
+  { id: 'summon',   label: '📍 召唤宠物', key: 'Ctrl+Shift+P' },
+  { id: 'feed',     label: '🍽️ 喂食',     key: 'Ctrl+Shift+F' },
+  { id: 'reminder', label: '📝 备忘',     key: 'Ctrl+Shift+N' },
+  { id: 'pomodoro', label: '🍅 番茄钟',   key: 'Ctrl+Shift+T' },
+  { id: 'snack',    label: '🍿 丢零食',   key: 'Ctrl+Shift+E' },
+])
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'update-available' | 'downloading' | 'installing' | 'error'
 const updateStatus = ref<UpdateStatus>('idle')

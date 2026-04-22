@@ -867,6 +867,19 @@ function waitForSnackLanded(id: number, timeoutMs: number): Promise<void> {
   })
 }
 
+// Keep the status panel in sync with the pet-side status ref in real
+// time. The panel window only sees data we explicitly push via
+// syncState; without this watch it only updates when the user
+// triggers an action from the panel itself (see handlePanelAction),
+// so a feed event fired from the pet window never made it to the
+// panel's feedsToday counter. `deep: true` because status is a
+// nested object and we care about any field change.
+watch(status, () => {
+  if (currentOpenPanel.value === 'status') {
+    syncState(getPanelData('status'))
+  }
+}, { deep: true })
+
 watch(currentState, (newState) => {
   if (newState === 'adventure_out' && !isOnAdventure.value) {
     startAdventure({
