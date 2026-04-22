@@ -1,6 +1,6 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { PhysicalPosition, PhysicalSize, currentMonitor } from '@tauri-apps/api/window'
-import { listen } from '@tauri-apps/api/event'
+import { listen, emit } from '@tauri-apps/api/event'
 
 /**
  * "Feeding mode" orchestration — called from the pet window.
@@ -83,9 +83,14 @@ export function useFeedingOverlay() {
     } catch { /* ignore */ }
 
     // Reset per-enter state: the overlay page may have toggled these
-    // off during its last run.
+    // off during its last run. We also kick the overlay's internal
+    // waitingClick flag via the feeding:reset event — after a snack
+    // finishes the overlay intentionally does NOT re-arm itself
+    // (otherwise it would silently keep capturing clicks); we do it
+    // from here instead, as close to show() as possible.
     try { await win.setAlwaysOnTop(true) } catch { /* ignore */ }
     try { await win.setIgnoreCursorEvents(false) } catch { /* ignore */ }
+    try { await emit('feeding:reset', null) } catch { /* ignore */ }
     try { await win.show() } catch { /* ignore */ }
   }
 

@@ -45,20 +45,33 @@ const snacks = ref<Snack[]>([])
 let nextId = 1
 let rafId: number | null = null
 let unlistenSnackEaten: (() => void) | null = null
+let unlistenReset: (() => void) | null = null
 
 function pickEmoji(): string {
   return FOOD_EMOJIS[Math.floor(Math.random() * FOOD_EMOJIS.length)]!
 }
 
 function computeGroundY(): number {
-  // CSS innerHeight gives us the overlay's height in CSS pixels. We drop
-  // the snack's *top* edge to innerHeight - SNACK_SIZE - small padding so
-  // the whole glyph sits on what looks like the bottom of the screen.
-  // Note: when the overlay was created fullscreen=true, innerHeight
-  // covers the work area already on Windows — the taskbar is not
-  // covered by a fullscreen-but-not-exclusive window with decorations
-  // off.
-  return window.innerHeight - SNACK_SIZE - 4
+  // We want the snack to rest on what the user perceives as "the bottom
+  // of the screen" — which on Windows is the top edge of the taskbar,
+  // NOT the absolute bottom pixel. Our overlay window is sized to the
+  // full monitor (so we can capture clicks over the taskbar too), so
+  // innerHeight here is the full screen height and would place the
+  // snack hidden *behind* the taskbar.
+  //
+  // window.screen.availHeight is the work-area height (monitor height
+  // minus taskbar and other docked bars) in CSS pixels — exactly what
+  // we want.
+  const dpr = window.devicePixelRatio || 1
+  // availHeight is in CSS pixels at the system scale; convert to the
+  // overlay's CSS pixels. In single-monitor setups these are equal.
+  const workAreaCssH = Math.floor(window.screen.availHeight)
+  // Clamp: if the API misreports, fall back to innerHeight so we at
+  // least stay on-screen.
+  const candidate = workAreaCssH - SNACK_SIZE - 4
+  const fallback = window.innerHeight - SNACK_SIZE - 4
+  return Math.min(candidate, fallback)
+  void dpr
 }
 
 function onClick(e: MouseEvent) {
@@ -146,14 +159,13 @@ function fadeOutAndRemove(id: number) {
     s.opacity = Math.max(0, 1 - t)
     if (t >= 1) {
       snacks.value = snacks.value.filter((x) => x.id !== id)
-      // If no snacks remain, hide the overlay entirely.
+      // If no snacks remain, hide the overlay. We do NOT reset
+      // waitingClick or cursor-events here — that's the job of the
+      // next enter() on the pet side, which emits feeding:reset.
+      // Otherwise a stale, hidden overlay would silently grab the
+      // user's clicks and keep dropping snacks forever.
       if (snacks.value.length === 0) {
-        try {
-          getCurrentWindow().hide()
-          // Reset state for the next enter.
-          waitingClick.value = true
-          getCurrentWindow().setIgnoreCursorEvents(false)
-        } catch { /* ignore */ }
+        try { getCurrentWindow().hide() } catch { /* ignore */ }
       }
     } else {
       requestAnimationFrame(step)
@@ -182,6 +194,18 @@ onMounted(async () => {
     setTimeout(() => fadeOutAndRemove(s.id), 3000)
   })
 
+  // The pet side's useFeedingOverlay.enter() emits feeding:reset each
+  // time the user re-enters feeding mode. That's the only place where
+  // we're allowed to re-arm the click capture: doing it automatically
+  // after a snack finishes would let the now-hidden overlay keep
+  // eating the user's clicks indefinitely (the "unlimited feeding"
+  // bug from 0.7.31).
+  unlistenReset = await listen<null>('feeding:reset', async () => {
+    waitingClick.value = true
+    try { await getCurrentWindow().setIgnoreCursorEvents(false) } catch { /* ignore */ }
+    try { await getCurrentWindow().setAlwaysOnTop(true) } catch { /* ignore */ }
+  })
+
   // Esc cancels the mode while we're still waiting for a click. After a
   // snack has already been dropped we let the fall+fade finish normally
   // — there's nothing to cancel at that point and pressing Esc in
@@ -204,6 +228,7 @@ function onKey(e: KeyboardEvent) {
 onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId)
   unlistenSnackEaten?.()
+  unlistenReset?.()
   window.removeEventListener('keydown', onKey)
 })
 </script>
