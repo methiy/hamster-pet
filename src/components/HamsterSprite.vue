@@ -24,10 +24,38 @@ import {
   hidingAnimation,
   adventureOutAnimation,
   adventureBackAnimation,
+  shyAnimation,
+  chaseAnimation,
+  grabbedAnimation,
+  landedAnimation,
+  pushHorizontalAnimation,
+  pushVerticalAnimation,
+  angryAnimation,
+  yawnAnimation,
+  scratchAnimation,
+  barkAnimation,
 } from '../sprites/image-frames'
 import type { BodyRegion } from '../data/hamsterPhrases'
 
-export type SpriteState = 'idle' | 'eating' | 'sleeping' | 'running' | 'hiding' | 'adventure_out' | 'adventure_back' | 'happy'
+export type SpriteState =
+  | 'idle'
+  | 'eating'
+  | 'sleeping'
+  | 'running'
+  | 'hiding'
+  | 'adventure_out'
+  | 'adventure_back'
+  | 'happy'
+  | 'shy'
+  | 'chase'
+  | 'grabbed'
+  | 'landed'
+  | 'push_horizontal'
+  | 'push_vertical'
+  | 'angry'
+  | 'yawn'
+  | 'scratch'
+  | 'bark'
 
 const CANVAS_SIZE = 128
 
@@ -117,6 +145,16 @@ function getAnimation(state: SpriteState): ImageAnimationDef {
     case 'hiding': return hidingAnimation
     case 'adventure_out': return adventureOutAnimation
     case 'adventure_back': return adventureBackAnimation
+    case 'shy': return shyAnimation
+    case 'chase': return chaseAnimation
+    case 'grabbed': return grabbedAnimation
+    case 'landed': return landedAnimation
+    case 'push_horizontal': return pushHorizontalAnimation
+    case 'push_vertical': return pushVerticalAnimation
+    case 'angry': return angryAnimation
+    case 'yawn': return yawnAnimation
+    case 'scratch': return scratchAnimation
+    case 'bark': return barkAnimation
   }
 }
 
