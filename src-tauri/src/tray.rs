@@ -54,7 +54,7 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .menu(&menu)
         .menu_on_left_click(false)  // Left click → show window, not menu
-        .tooltip("Hamster Pet")
+        .tooltip("柯基桌宠")
         .on_menu_event(move |app, event| {
             match event.id().as_ref() {
                 "summon" => {

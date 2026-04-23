@@ -44,7 +44,7 @@
       />
     </div>
     <div v-else class="panel-loading">
-      <div class="loading-emoji">🐹</div>
+      <div class="loading-emoji">🐶</div>
     </div>
   </div>
 </template>

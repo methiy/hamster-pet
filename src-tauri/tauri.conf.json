@@ -1,6 +1,6 @@
 {
   "productName": "Hamster Pet",
-  "version": "0.7.38",
+  "version": "0.7.39",
   "identifier": "com.hamster.pet",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -36,7 +36,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Hamster Pet",
+        "title": "柯基桌宠",
         "width": 150,
         "height": 170,
         "resizable": false,

@@ -1,9 +1,9 @@
 <template>
   <div class="about-panel" @click.stop>
     <div class="about-header">
-      <div class="about-icon">🐹</div>
-      <h2 class="about-title">仓鼠宠物</h2>
-      <div class="about-subtitle">Hamster Pet</div>
+      <div class="about-icon">🐶</div>
+      <h2 class="about-title">柯基桌宠</h2>
+      <div class="about-subtitle">Corgi Pet</div>
       <div class="about-version">v{{ appVersion }}</div>
     </div>
 

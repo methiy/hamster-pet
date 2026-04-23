@@ -773,12 +773,12 @@ function onFeedItem(foodId: string) {
 
     if (food?.effect === 'happy') {
       setTimeout(() => triggerHappy(), 3000)
-      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '好好吃的蛋糕！🎂' })
+      showToast({ type: 'success', icon: '🎉', title: `柯基吃了 ${food.emoji} ${food.name}`, message: '好好吃的蛋糕！🎂' })
     } else if (food?.effect === 'special_happy') {
       setTimeout(() => triggerHappy(), 3000)
-      showToast({ type: 'success', icon: '✨', title: `仓鼠吃了 ${food.emoji} ${food.name}`, message: '这是什么神仙美食！太幸福了！✨' })
+      showToast({ type: 'success', icon: '✨', title: `柯基吃了 ${food.emoji} ${food.name}`, message: '这是什么神仙美食！太幸福了！✨' })
     } else {
-      showToast({ type: 'success', icon: '🎉', title: `仓鼠吃了 ${food?.emoji ?? '🍽️'} ${food?.name ?? foodId}`, message: '看起来很满足~' })
+      showToast({ type: 'success', icon: '🎉', title: `柯基吃了 ${food?.emoji ?? '🍽️'} ${food?.name ?? foodId}`, message: '看起来很满足~' })
     }
   }
 }

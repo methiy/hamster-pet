@@ -1,6 +1,6 @@
 <template>
   <div class="status-panel" @click.stop>
-    <h2 class="panel-title">📊 仓鼠状态</h2>
+    <h2 class="panel-title">📊 柯基状态</h2>
 
         <!-- Mood & Fullness bars -->
         <div class="stat-section">
@@ -52,9 +52,9 @@
 
         <!-- Mood hint -->
         <div class="mood-hint">
-          <span v-if="moodLevel === 'happy'">🥰 仓鼠很开心！继续保持~</span>
-          <span v-else-if="moodLevel === 'normal'">😊 仓鼠状态还不错</span>
-          <span v-else>😢 仓鼠有点难过...多陪陪它吧</span>
+          <span v-if="moodLevel === 'happy'">🥰 柯基很开心！继续保持~</span>
+          <span v-else-if="moodLevel === 'normal'">😊 柯基状态还不错</span>
+          <span v-else>😢 柯基有点难过...多陪陪它吧</span>
         </div>
   </div>
 </template>

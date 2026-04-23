@@ -105,7 +105,7 @@ export const locations: Location[] = [
     name: '神秘海岛',
     emoji: '🏝️',
     description: '碧蓝海水环绕的小岛',
-    postcardDescription: '棕榈树下，仓鼠在沙滩上留下了小脚印',
+    postcardDescription: '棕榈树下，柯基在沙滩上留下了小脚印',
     possibleSouvenirs: ['pearl_necklace', 'starfish_new', 'message_bottle'],
     unlockCondition: 'hasBoatTicket',
   },

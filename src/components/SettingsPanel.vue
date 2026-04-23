@@ -74,7 +74,7 @@
         </div>
 
         <div class="section-divider">
-          <h3 class="section-label">🐹 互动行为</h3>
+          <h3 class="section-label">🐶 互动行为</h3>
         </div>
 
         <div class="setting-row">
@@ -93,7 +93,7 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div v-if="activityReactionEnabled" class="setting-hint">仓鼠会跑去推窗口或帮你暂停视频</div>
+        <div v-if="activityReactionEnabled" class="setting-hint">柯基会跑去推窗口或帮你暂停视频</div>
 
         <div v-if="activityReactionEnabled" class="setting-row">
           <span class="setting-label">⏱️ 提醒间隔</span>

@@ -91,7 +91,7 @@
         <!-- Reminder list -->
         <div class="reminder-list">
           <div v-if="reminders.length === 0" class="empty-state">
-            还没有备忘~ 🐹
+            还没有备忘~ 🐶
           </div>
           <div
             v-for="r in sortedReminders"
