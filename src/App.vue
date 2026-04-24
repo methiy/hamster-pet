@@ -567,8 +567,15 @@ function handleRegionClick(region: BodyRegion) {
   const phrases = CLICK_PHRASES[region]
   speechText.value = phrases[Math.floor(Math.random() * phrases.length)]
   speechVisible.value = true
-  const reaction = REACTION_MAP[region]
-  triggerReaction(reaction.state, reaction.duration)
+  // 30% chance to show a shy blush when the corgi is petted on head/belly/body,
+  // otherwise use the normal region→reaction map.
+  const shyEligible = region === 'head' || region === 'belly' || region === 'body'
+  if (shyEligible && Math.random() < 0.3) {
+    triggerReaction('shy', 1800)
+  } else {
+    const reaction = REACTION_MAP[region]
+    triggerReaction(reaction.state, reaction.duration)
+  }
   playSound('click')
   recordClick()
 }
@@ -641,8 +648,8 @@ async function onGrabStart() {
     grabScreenY = 0
   } catch { /* Not in Tauri */ }
 
-  // Scared reaction + speech
-  triggerReaction('hiding', 30000) // long duration, will be cleared on release
+  // Grabbed reaction (legs dangling) — long duration, will be cleared on release
+  triggerReaction('grabbed', 30000)
   speechText.value = pickRandom(GRAB_PHRASES)
   speechVisible.value = true
 
@@ -760,7 +767,9 @@ async function onGrabEnd() {
   } catch { /* Not in Tauri */ }
 
   await clampToScreen()
-  triggerReaction('happy', 2000)
+  // Landed (butt-drop squash) first, then happy relief
+  triggerReaction('landed', 700)
+  setTimeout(() => triggerReaction('happy', 1500), 700)
 }
 
 // --- Menu actions ---
@@ -1169,9 +1178,12 @@ onMounted(async () => {
           speechText.value = pickRandom(SUMMON_PHRASES)
           speechVisible.value = true
           await startSummonWalk(targetX, targetY, { speedMultiplier: 3 })
-          triggerReaction('happy', 2000)
+          // Bark twice to announce arrival, then relief/happy
+          triggerReaction('bark', 1200)
+          setTimeout(() => triggerReaction('happy', 1500), 1200)
         } else {
-          triggerReaction('happy', 2000)
+          triggerReaction('bark', 1200)
+          setTimeout(() => triggerReaction('happy', 1500), 1200)
           speechText.value = pickRandom(SUMMON_PHRASES)
           speechVisible.value = true
         }

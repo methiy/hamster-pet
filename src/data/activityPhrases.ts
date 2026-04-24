@@ -25,8 +25,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
       '主人眼睛要瞎啦，休息一下嘛~',
       '又在加班...心疼主人',
     ],
-    reactionState: 'idle',
-    reactionDuration: 2000,
+    reactionState: 'angry',
+    reactionDuration: 2500,
     cooldown: 60 * 1000,  // 1 minute
     pushChance: 0.30,
   },
@@ -53,8 +53,8 @@ export const ACTIVITY_PHRASES: Record<ActivityType, ActivityConfig> = {
       '带我一起玩嘛~',
       '你这游戏不如柯基模拟器好玩！',
     ],
-    reactionState: 'happy',
-    reactionDuration: 2000,
+    reactionState: 'angry',
+    reactionDuration: 2500,
     cooldown: 60 * 1000,  // 1 minute
     pushChance: 0.50,
   },

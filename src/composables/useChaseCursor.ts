@@ -84,7 +84,7 @@ export function useChaseCursor(callbacks: ChaseCallbacks) {
       const petHalfH = win.height / 2
 
       callbacks.showSpeech(pickRandom(CHASE_START_PHRASES))
-      callbacks.triggerReaction('running', CHASE_TIMEOUT_MS + 500)
+      callbacks.triggerReaction('chase', CHASE_TIMEOUT_MS + 500)
 
       const chaseStart = performance.now()
       const samples: DistanceSample[] = []

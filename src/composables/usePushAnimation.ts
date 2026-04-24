@@ -426,9 +426,11 @@ export function usePushAnimation(callbacks: PushCallbacks) {
         ? pushPhrases[Math.floor(Math.random() * pushPhrases.length)]
         : ACTIVITY_PHRASES[activity].phrases[Math.floor(Math.random() * ACTIVITY_PHRASES[activity].phrases.length)]
       callbacks.showSpeech(phrase)
-      callbacks.triggerReaction('happy', PUSH_DURATION + 1000)
+      // Push animation variant depends on direction: horizontal for left/right, vertical for up/down
+      const pushState: HamsterState = approach.dirY !== 0 ? 'push_vertical' : 'push_horizontal'
+      callbacks.triggerReaction(pushState, PUSH_DURATION + 1000)
 
-      // Small pause before pushing (仓鼠蓄力)
+      // Small pause before pushing (柯基蓄力)
       await new Promise(resolve => setTimeout(resolve, 500))
       if (cancelled) return
 
